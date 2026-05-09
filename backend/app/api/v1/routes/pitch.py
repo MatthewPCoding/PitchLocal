@@ -36,7 +36,7 @@ class SendPitchBody(BaseModel):
 
 
 async def _check_ai_limit(user: User, db: AsyncSession) -> None:
-    if user.tier == UserTier.PRO:
+    if user.tier == UserTier.pro:
         return
     now = datetime.now(timezone.utc)
     result = await db.execute(
@@ -44,7 +44,7 @@ async def _check_ai_limit(user: User, db: AsyncSession) -> None:
         .select_from(Pitch)
         .where(
             Pitch.user_id == user.id,
-            Pitch.method == ModelPitchMethod.AI,
+            Pitch.method == ModelPitchMethod.ai,
             extract("year", Pitch.created_at) == now.year,
             extract("month", Pitch.created_at) == now.month,
         )
@@ -117,7 +117,7 @@ async def create_pitch(
     subject = body.subject
     angles = None
 
-    if body.method == PitchMethod.AI:
+    if body.method == PitchMethod.ai:
         await _check_ai_limit(current_user, db)
         ai = await _ai_content(lead, db)
         content = ai["suggested_pitch"]

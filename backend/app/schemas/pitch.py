@@ -8,8 +8,8 @@ from pydantic import BaseModel
 
 
 class PitchMethod(str, enum.Enum):
-    AI = "ai"
-    MANUAL = "manual"
+    ai = "ai"
+    manual = "manual"
 
 
 class PitchAngle(BaseModel):
@@ -19,7 +19,7 @@ class PitchAngle(BaseModel):
 
 class PitchGenerateRequest(BaseModel):
     lead_id: UUID
-    method: PitchMethod = PitchMethod.AI
+    method: PitchMethod = PitchMethod.ai
     content: Optional[str] = None   # required when method is MANUAL
     subject: Optional[str] = None
 

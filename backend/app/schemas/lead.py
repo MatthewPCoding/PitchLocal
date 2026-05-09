@@ -10,17 +10,17 @@ from app.schemas.business import BusinessResponse
 
 
 class LeadSource(str, enum.Enum):
-    LOCAL = "local"
-    REDDIT = "reddit"
-    DISCORD = "discord"
+    local = "local"
+    reddit = "reddit"
+    discord = "discord"
 
 
 class LeadStatus(str, enum.Enum):
-    NEW = "new"
-    PITCHED = "pitched"
-    INTERESTED = "interested"
-    REJECTED = "rejected"
-    LANDED = "landed"
+    new = "new"
+    pitched = "pitched"
+    interested = "interested"
+    rejected = "rejected"
+    landed = "landed"
 
 
 class LeadCreate(BaseModel):

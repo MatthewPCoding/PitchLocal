@@ -7,8 +7,8 @@ import uuid
 import enum
 
 class PitchMethod(str, enum.Enum):
-    AI = "ai"
-    MANUAL = "manual"
+    ai = "ai"
+    manual = "manual"
 
 class Pitch(Base):
     __tablename__ = "pitches"

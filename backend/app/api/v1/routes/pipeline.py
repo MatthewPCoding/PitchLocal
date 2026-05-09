@@ -53,7 +53,7 @@ async def create_project(
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
 
-    lead.status = LeadStatus.LANDED
+    lead.status = LeadStatus.landed
 
     project = Project(**body.model_dump())
     db.add(project)
@@ -120,7 +120,7 @@ async def create_monitor(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    if current_user.tier != UserTier.PRO:
+    if current_user.tier != UserTier.pro:
         count = (
             await db.execute(
                 select(func.count())

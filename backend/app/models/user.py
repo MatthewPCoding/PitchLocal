@@ -7,8 +7,8 @@ import uuid
 import enum
 
 class UserTier(str, enum.Enum):
-    FREE = "free"
-    PRO = "pro"
+    free = "free"
+    pro = "pro"
 
 class User(Base):
     __tablename__ = "users"

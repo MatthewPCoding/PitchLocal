@@ -19,7 +19,7 @@ FREE_SEARCH_DAILY_LIMIT = 10
 
 
 async def _check_search_limit(user: User, db: AsyncSession) -> None:
-    if user.tier == UserTier.PRO:
+    if user.tier == UserTier.pro:
         return
     today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
     result = await db.execute(
@@ -27,7 +27,7 @@ async def _check_search_limit(user: User, db: AsyncSession) -> None:
         .select_from(Lead)
         .where(
             Lead.user_id == user.id,
-            Lead.source == LeadSource.LOCAL,
+            Lead.source == LeadSource.local,
             Lead.created_at >= today,
         )
     )
