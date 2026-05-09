@@ -20,11 +20,11 @@ class Settings(BaseSettings):
     ANTHROPIC_API_KEY: str
 
     # Google Places
-    GOOGLE_PLACES_API_KEY: str
+    GOOGLE_PLACES_API_KEY: Optional[str] = None
 
     # Reddit
-    REDDIT_CLIENT_ID: str
-    REDDIT_CLIENT_SECRET: str
+    REDDIT_CLIENT_ID: Optional[str] = None
+    REDDIT_CLIENT_SECRET: Optional[str] = None
     REDDIT_USER_AGENT: str = "PitchLocal/1.0"
 
     # Discord
@@ -33,8 +33,8 @@ class Settings(BaseSettings):
     # Email
     SMTP_HOST: str = "smtp.gmail.com"
     SMTP_PORT: int = 587
-    SMTP_USER: str
-    SMTP_PASSWORD: str
+    SMTP_USER: Optional[str] = None
+    SMTP_PASSWORD: Optional[str] = None
 
     class Config:
         env_file = ".env"
