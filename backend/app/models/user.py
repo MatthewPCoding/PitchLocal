@@ -30,7 +30,6 @@ class User(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     # Relationships
-    profile = relationship("FreelancerProfile", back_populates="user", uselist=False)
     leads = relationship("Lead", back_populates="user")
     pitches = relationship("Pitch", back_populates="user")
     notifications = relationship("Notification", back_populates="user")
