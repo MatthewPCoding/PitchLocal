@@ -24,6 +24,6 @@ async def get_current_user(
     return user
 
 async def require_pro(user: User = Depends(get_current_user)) -> User:
-    if user.tier != UserTier.PRO:
+    if user.tier != UserTier.pro:
         raise HTTPException(status_code=status.HTTP_402_PAYMENT_REQUIRED, detail="Pro plan required")
     return user

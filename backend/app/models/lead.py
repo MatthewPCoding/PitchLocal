@@ -25,7 +25,7 @@ class Lead(Base):
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     business_id = Column(UUID(as_uuid=True), ForeignKey("businesses.id"), nullable=True)
     source = Column(Enum(LeadSource), nullable=False)
-    status = Column(Enum(LeadStatus), default=LeadStatus.NEW)
+    status = Column(Enum(LeadStatus), default=LeadStatus.new)
     source_url = Column(String, nullable=True)       # Reddit/Discord post URL
     source_content = Column(Text, nullable=True)     # Original post text
     notes = Column(Text, nullable=True)

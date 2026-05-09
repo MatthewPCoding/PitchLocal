@@ -5,7 +5,7 @@ import BusinessCard from "./BusinessCard";
 import BusinessDetail from "./BusinessDetail";
 
 export default function BusinessSearch() {
-  const [query, setQuery] = useState({ keyword: "", location: "", radius: 10 });
+  const [query, setQuery] = useState({ query: "", radius_miles: 10 });
   const { results, loading, searched, search } = useBusinessSearch();
   const { leads, create: addLead } = useLeads();
   const [selected, setSelected] = useState(null);
@@ -15,7 +15,7 @@ export default function BusinessSearch() {
 
   function handleSubmit(e) {
     e.preventDefault();
-    if (!query.keyword.trim()) return;
+    if (!query.query.trim()) return;
     search(query);
   }
 
@@ -31,23 +31,16 @@ export default function BusinessSearch() {
         <input
           type="text"
           placeholder='e.g. "web design", "plumber"'
-          value={query.keyword}
-          onChange={(e) => setQuery((q) => ({ ...q, keyword: e.target.value }))}
+          value={query.query}
+          onChange={(e) => setQuery((q) => ({ ...q, query: e.target.value }))}
           className="flex-1 rounded-xl border border-gray-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
         />
-        <input
-          type="text"
-          placeholder="City or zip code (optional)"
-          value={query.location}
-          onChange={(e) => setQuery((q) => ({ ...q, location: e.target.value }))}
-          className="sm:w-52 rounded-xl border border-gray-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-        />
         <select
-          value={query.radius}
-          onChange={(e) => setQuery((q) => ({ ...q, radius: Number(e.target.value) }))}
+          value={query.radius_miles}
+          onChange={(e) => setQuery((q) => ({ ...q, radius_miles: Number(e.target.value) }))}
           className="sm:w-32 rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
         >
-          {[5, 10, 20, 50].map((r) => (
+          {[5, 10, 25, 50].map((r) => (
             <option key={r} value={r}>{r} miles</option>
           ))}
         </select>

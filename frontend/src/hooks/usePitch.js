@@ -13,7 +13,7 @@ export function usePitch() {
     setLoading(true);
     try {
       const data = await pitchService.getForLead(leadId);
-      setPitch(data);
+      setPitch(Array.isArray(data) ? (data[0] || null) : data);
     } catch (err) {
       if (err.response?.status !== 404) {
         toast.error("Failed to load pitch.");

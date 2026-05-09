@@ -23,16 +23,15 @@ export default function PitchGenerator({ lead, onClose }) {
   }
 
   async function handleSave(body) {
-    const payload = {
-      ...body,
-      lead_id: lead.id,
-      method: mode,
-      ...(selectedAngle ? { angles: [selectedAngle] } : {}),
-    };
     if (pitch?.id) {
       await update(pitch.id, body);
     } else {
-      await create(payload);
+      await create({
+        lead_id: lead.id,
+        method: mode,
+        content: body.content,
+        subject: body.subject,
+      });
     }
   }
 
@@ -45,7 +44,7 @@ export default function PitchGenerator({ lead, onClose }) {
   }
 
   const editorInitial = selectedAngle
-    ? { subject_line: pitch?.subject_line || angles?.subject_line || "", body: selectedAngle.suggested_pitch || pitch?.body || "" }
+    ? { subject: pitch?.subject || angles?.subject_line || "", content: selectedAngle.suggested_pitch || pitch?.content || "" }
     : pitch;
 
   if (loading) {

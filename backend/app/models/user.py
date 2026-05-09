@@ -17,7 +17,7 @@ class User(Base):
     email = Column(String, unique=True, nullable=False, index=True)
     password_hash = Column(String, nullable=False)
     full_name = Column(String, nullable=False)
-    tier = Column(Enum(UserTier), default=UserTier.FREE, nullable=False)
+    tier = Column(Enum(UserTier), default=UserTier.free, nullable=False)
     is_active = Column(Boolean, default=True)
     email_verified = Column(Boolean, default=False)
     city = Column(String, nullable=True)

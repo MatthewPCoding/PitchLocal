@@ -1,21 +1,21 @@
 import { useState, useEffect } from "react";
 
 export default function PitchEditor({ pitch, onSave, onSend, sending }) {
-  const [subject, setSubject] = useState(pitch?.subject_line || "");
-  const [body, setBody]       = useState(pitch?.body || "");
+  const [subject, setSubject] = useState(pitch?.subject || "");
+  const [body, setBody]       = useState(pitch?.content || "");
   const [email, setEmail]     = useState("");
   const [showSend, setShowSend] = useState(false);
   const [saving, setSaving]   = useState(false);
 
   useEffect(() => {
-    setSubject(pitch?.subject_line || "");
-    setBody(pitch?.body || "");
+    setSubject(pitch?.subject || "");
+    setBody(pitch?.content || "");
   }, [pitch?.id]);
 
   async function handleSave() {
     setSaving(true);
     try {
-      await onSave({ subject_line: subject, body });
+      await onSave({ subject, content: body });
     } finally {
       setSaving(false);
     }
