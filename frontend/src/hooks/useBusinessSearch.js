@@ -1,16 +1,59 @@
 import { useState, useCallback } from "react";
 import { businessService } from "../services/business";
+import { useAuth } from "./useAuth";
 import toast from "react-hot-toast";
 
+async function geocodeAddress(address) {
+  const key = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+  if (!key || !address) return null;
+  try {
+    const res = await fetch(
+      `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${key}`
+    );
+    const data = await res.json();
+    if (data.status === "OK" && data.results[0]) {
+      const { lat, lng } = data.results[0].geometry.location;
+      return { lat, lng };
+    }
+  } catch {
+    // geocoding failed — fall through
+  }
+  return null;
+}
+
 export function useBusinessSearch() {
-  const [results, setResults] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [searched, setSearched] = useState(false);
+  const { user }                          = useAuth();
+  const [results, setResults]             = useState([]);
+  const [loading, setLoading]             = useState(false);
+  const [searched, setSearched]           = useState(false);
 
   const search = useCallback(async (params) => {
+    let finalParams = { ...params };
+
+    // Resolve lat/lng if not supplied
+    if (!finalParams.lat || !finalParams.lng) {
+      if (user?.lat && user?.lng) {
+        finalParams.lat = user.lat;
+        finalParams.lng = user.lng;
+      } else if (user?.city) {
+        const address = [user.city, user.state].filter(Boolean).join(", ");
+        const coords = await geocodeAddress(address);
+        if (coords) {
+          finalParams.lat = coords.lat;
+          finalParams.lng = coords.lng;
+        } else {
+          toast.error("Could not determine your location. Set lat/lng in your profile.");
+          return;
+        }
+      } else {
+        toast.error("No location found. Add your city in Profile settings.");
+        return;
+      }
+    }
+
     setLoading(true);
     try {
-      const data = await businessService.search(params);
+      const data = await businessService.search(finalParams);
       setResults(data);
       setSearched(true);
     } catch (err) {
@@ -23,7 +66,7 @@ export function useBusinessSearch() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [user]);
 
   const clear = useCallback(() => {
     setResults([]);
