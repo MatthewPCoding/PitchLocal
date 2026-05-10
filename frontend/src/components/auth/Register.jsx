@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import { validatePasswordStrength } from "../../utils/validators";
 import { parseLocation } from "../../utils/geocode";
+import LocationInput from "../shared/LocationInput";
 import PasswordStrength from "./PasswordStrength";
 import toast from "react-hot-toast";
 
@@ -67,13 +68,10 @@ export default function Register({ onSwitch }) {
         <label className="block text-sm font-medium text-gray-700 mb-1">
           Location <span className="text-gray-400 font-normal">(optional)</span>
         </label>
-        <input
-          type="text"
-          autoComplete="address-level2"
+        <LocationInput
           value={form.location}
-          onChange={set("location")}
+          onChange={(val) => setForm((f) => ({ ...f, location: val }))}
           className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
-          placeholder="City, State — e.g. Austin, TX"
         />
       </div>
 
