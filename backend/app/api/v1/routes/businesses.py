@@ -105,14 +105,21 @@ async def upsert_business(
 
 @router.post("/find-email")
 async def find_business_email(
-    website: str = Body(..., embed=True),
+    website: str | None = Body(None, embed=True),
+    name: str = Body("", embed=True),
+    address: str = Body("", embed=True),
     current_user: User = Depends(get_current_user),
 ):
-    """Scrape a business website for a contact email address."""
-    website = website.strip()
-    if not website:
-        raise HTTPException(status_code=422, detail="website is required")
-    email = await find_email_for_business(website)
+    """Scrape a business website for a contact email.
+    Accepts website URL directly, or falls back to Nominatim lookup by name+address.
+    """
+    if not website and not name:
+        raise HTTPException(status_code=422, detail="website or name is required")
+    email = await find_email_for_business(
+        website=website,
+        name=name,
+        address=address,
+    )
     return {"email": email}
 
 

@@ -60,8 +60,51 @@ def _score_email(email: str, biz_domain: str) -> int:
     return score
 
 
-async def find_email_for_business(website: str) -> str | None:
-    """Scrape a business website (homepage + contact pages) for a contact email."""
+async def _find_website_via_nominatim(name: str, address: str) -> str | None:
+    """Search Nominatim for a business by name and return its website tag if present."""
+    query = f"{name} {address}".strip()
+    if not query:
+        return None
+    params = {
+        "q": query,
+        "format": "json",
+        "addressdetails": "0",
+        "extratags": "1",
+        "limit": "3",
+    }
+    headers = {"User-Agent": "PitchLocal/1.0 (contact@pitchlocal.app)"}
+    try:
+        async with httpx.AsyncClient(timeout=6) as client:
+            resp = await client.get(
+                "https://nominatim.openstreetmap.org/search",
+                params=params,
+                headers=headers,
+            )
+            results = resp.json()
+        for r in results:
+            website = (r.get("extratags") or {}).get("website") or \
+                      (r.get("extratags") or {}).get("contact:website")
+            if website:
+                return website
+    except Exception:
+        pass
+    return None
+
+
+async def find_email_for_business(
+    website: str | None = None,
+    name: str = "",
+    address: str = "",
+) -> str | None:
+    """Scrape a business website for a contact email.
+
+    If no website is supplied, tries Nominatim first to discover it.
+    """
+    if not website:
+        website = await _find_website_via_nominatim(name, address)
+    if not website:
+        return None
+
     website = website.rstrip("/")
     if not website.startswith("http"):
         website = "https://" + website

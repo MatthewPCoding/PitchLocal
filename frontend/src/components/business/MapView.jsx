@@ -176,10 +176,14 @@ export default function MapView() {
 
   async function openCard(biz, isPoi) {
     setActiveCard({ biz, isPoi });
-    if (!biz.email && biz.website) {
+    if (!biz.email && (biz.website || biz.name)) {
       setEmailSearching(true);
       try {
-        const found = await businessService.findEmail(biz.website);
+        const found = await businessService.findEmail({
+          website: biz.website,
+          name: biz.name,
+          address: biz.address,
+        });
         if (found) {
           setActiveCard((prev) =>
             prev ? { ...prev, biz: { ...prev.biz, email: found } } : prev
@@ -431,7 +435,7 @@ function BusinessPanel({ biz, saved, emailSearching, onSave, onContact, onHide, 
             </a>
           </div>
         )}
-        {(biz.email || (emailSearching && biz.website)) && (
+        {(biz.email || emailSearching) && (
           <div className="flex items-center gap-3">
             <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
