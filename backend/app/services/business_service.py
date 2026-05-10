@@ -112,16 +112,25 @@ async def _google_nearby(lat, lng, radius_miles, category, keyword):
 async def _overpass_nearby(lat, lng, radius_miles, keyword):
     # Cap at 8 km to avoid Overpass timeout
     radius_m = min(int(radius_miles * 1609.34), 8000)
+    # Include way + relation so businesses mapped as buildings show up too
     query = f"""
-[out:json][timeout:15];
+[out:json][timeout:25];
 (
   node["amenity"]["name"](around:{radius_m},{lat},{lng});
   node["shop"]["name"](around:{radius_m},{lat},{lng});
+  node["tourism"]["name"](around:{radius_m},{lat},{lng});
+  node["leisure"]["name"](around:{radius_m},{lat},{lng});
+  node["office"]["name"](around:{radius_m},{lat},{lng});
+  way["amenity"]["name"](around:{radius_m},{lat},{lng});
+  way["shop"]["name"](around:{radius_m},{lat},{lng});
+  way["tourism"]["name"](around:{radius_m},{lat},{lng});
+  way["office"]["name"](around:{radius_m},{lat},{lng});
+  relation["amenity"]["name"](around:{radius_m},{lat},{lng});
 );
-out body 40;
+out center body 60;
 """
     try:
-        async with httpx.AsyncClient(timeout=20) as client:
+        async with httpx.AsyncClient(timeout=30) as client:
             resp = await client.post(
                 "https://overpass-api.de/api/interpreter",
                 data={"data": query},
@@ -132,17 +141,35 @@ out body 40;
 
     kw = keyword.lower() if keyword else ""
     results = []
+    seen: set[str] = set()
     for el in data.get("elements", []):
         tags = el.get("tags", {})
         name = tags.get("name", "")
         if not name or _is_chain(name):
             continue
-        category = tags.get("amenity") or tags.get("shop") or ""
+        # Deduplicate by name+address in case node+way both appear
+        dedup_key = name.lower()
+        if dedup_key in seen:
+            continue
+        seen.add(dedup_key)
+
+        category = (
+            tags.get("amenity") or tags.get("shop") or tags.get("tourism")
+            or tags.get("leisure") or tags.get("office") or ""
+        )
         if kw and kw not in name.lower() and kw not in category.lower():
             continue
         housenumber = tags.get("addr:housenumber", "")
         street      = tags.get("addr:street", "")
         address     = f"{housenumber} {street}".strip() if housenumber or street else ""
+
+        # way/relation use a "center" object; node has lat/lon directly
+        center = el.get("center", {})
+        lat_val = el.get("lat") or center.get("lat")
+        lng_val = el.get("lon") or center.get("lon")
+        if lat_val is None or lng_val is None:
+            continue
+
         results.append({
             "google_place_id": f"osm_{el['id']}",
             "name": name,
@@ -150,13 +177,13 @@ out body 40;
             "address": address,
             "city":  tags.get("addr:city", ""),
             "state": tags.get("addr:state", ""),
-            "lat":   el.get("lat"),
-            "lng":   el.get("lon"),
+            "lat":   lat_val,
+            "lng":   lng_val,
             "phone":   tags.get("phone") or tags.get("contact:phone"),
             "email":   tags.get("email") or tags.get("contact:email"),
             "website": tags.get("website") or tags.get("contact:website"),
         })
-    return results[:30]
+    return results[:50]
 
 
 async def get_place_details(place_id: str) -> dict:

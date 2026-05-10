@@ -272,9 +272,6 @@ export default function MapView() {
           streetViewControl: false,
           mapTypeControl: false,
           fullscreenControl: false,
-          styles: [
-            { featureType: "poi.business", stylers: [{ visibility: "off" }] },
-          ],
         }}
       >
         {visible.map((biz) => (
