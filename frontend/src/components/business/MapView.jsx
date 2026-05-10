@@ -455,7 +455,19 @@ function BusinessPanel({ biz, saved, emailSearching, emailNotFound, onSave, onCo
                 Searching for email…
               </span>
             ) : (
-              <span className="text-sm text-gray-400 italic">No email found — check their website</span>
+              <span className="text-sm text-gray-400 italic">
+                No email found —{" "}
+                {biz.website ? (
+                  <a
+                    href={biz.website.startsWith("http") ? biz.website : `https://${biz.website}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-brand-500 hover:underline not-italic"
+                  >
+                    check their site
+                  </a>
+                ) : "check their website"}
+              </span>
             )}
           </div>
         )}

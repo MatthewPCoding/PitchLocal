@@ -1,10 +1,44 @@
 import re
+from html.parser import HTMLParser
 import httpx
 from app.core.config import settings
 
 # ── Email finder ──────────────────────────────────────────────────────────────
 
 _EMAIL_RE = re.compile(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}")
+
+
+class _MailtoParser(HTMLParser):
+    """Pull email addresses from <a href="mailto:..."> links — more reliable than regex."""
+    def __init__(self):
+        super().__init__()
+        self.emails: list[str] = []
+
+    def handle_starttag(self, tag, attrs):
+        if tag == "a":
+            for name, value in attrs:
+                if name == "href" and value and value.lower().startswith("mailto:"):
+                    email = value[7:].split("?")[0].strip().lower()
+                    if email and "@" in email:
+                        self.emails.append(email)
+
+
+def _extract_emails(html: str) -> list[str]:
+    """Return all email candidates from a page: mailto links first, then regex."""
+    parser = _MailtoParser()
+    try:
+        parser.feed(html)
+    except Exception:
+        pass
+    mailto_emails = list(dict.fromkeys(parser.emails))  # deduplicate, preserve order
+    regex_emails  = list(dict.fromkeys(_EMAIL_RE.findall(html)))
+    # mailto links are higher confidence — put them first
+    seen = set(mailto_emails)
+    for e in regex_emails:
+        if e.lower() not in seen:
+            mailto_emails.append(e.lower())
+            seen.add(e.lower())
+    return mailto_emails
 
 # File/asset extensions that appear after @ in filenames (e.g. flags@2x.png)
 _FAKE_TLDS = {
@@ -121,8 +155,10 @@ async def find_email_for_business(
                 resp = await client.get(url, headers=headers)
                 if resp.status_code >= 400:
                     continue
-                for email in _EMAIL_RE.findall(resp.text):
+                for email in _extract_emails(resp.text):
                     email = email.lower()
+                    if "@" not in email:
+                        continue
                     prefix, domain = email.split("@", 1)
                     tld = domain.rsplit(".", 1)[-1]
                     if tld in _FAKE_TLDS:
