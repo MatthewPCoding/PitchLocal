@@ -6,17 +6,17 @@ import { leadsService } from "../../services/pipeline";
 import ContactModal from "./ContactModal";
 import toast from "react-hot-toast";
 
-const CONTAINER_STYLE = { width: "100%", height: "calc(100vh - 56px)" };
+const CONTAINER_STYLE = { width: "100%", height: "calc(100vh - 104px)" }; // 56px nav + 48px tab bar
 const DEFAULT_CENTER  = { lat: 37.7749, lng: -122.4194 };
 const LIBRARIES       = ["places"];
 
 export default function MapView() {
   const { user }                              = useAuth();
   const [businesses, setBusinesses]           = useState([]);
-  const [selected, setSelected]               = useState(null);
+  const [selectedId, setSelectedId]           = useState(null);
   const [contactBiz, setContactBiz]           = useState(null);
   const [hiddenIds, setHiddenIds]             = useState(new Set());
-  const [savedLeadMap, setSavedLeadMap]       = useState({}); // biz.id → lead.id
+  const [savedLeadMap, setSavedLeadMap]       = useState({});
   const [center, setCenter]                   = useState(DEFAULT_CENTER);
   const [fetching, setFetching]               = useState(false);
   const fetchedRef                            = useRef(false);
@@ -103,10 +103,11 @@ export default function MapView() {
 
   function handleHide(biz) {
     setHiddenIds((prev) => new Set(prev).add(biz.id));
-    setSelected(null);
+    setSelectedId(null);
   }
 
-  const visible = businesses.filter((b) => !hiddenIds.has(b.id));
+  const visible  = businesses.filter((b) => !hiddenIds.has(b.id));
+  const selected = visible.find((b) => b.id === selectedId) ?? null;
 
   if (loadError) {
     return (
@@ -143,18 +144,19 @@ export default function MapView() {
         mapContainerStyle={CONTAINER_STYLE}
         center={center}
         zoom={13}
-        onClick={() => setSelected(null)}
+        onClick={() => setSelectedId(null)}
         options={{
           streetViewControl: false,
           mapTypeControl: false,
           fullscreenControl: false,
+          clickableIcons: false,
         }}
       >
         {visible.map((biz) => (
           <Marker
             key={biz.id}
             position={{ lat: biz.lat, lng: biz.lng }}
-            onClick={() => setSelected(biz)}
+            onClick={() => setSelectedId(biz.id)}
             icon={savedLeadMap[biz.id] ? {
               path: window.google.maps.SymbolPath.CIRCLE,
               scale: 8,
@@ -163,62 +165,58 @@ export default function MapView() {
               strokeColor: "#fff",
               strokeWeight: 2,
             } : undefined}
-          />
-        ))}
-
-        {selected && (
-          <InfoWindow
-            position={{ lat: selected.lat, lng: selected.lng }}
-            onCloseClick={() => setSelected(null)}
-            options={{ pixelOffset: new window.google.maps.Size(0, -32) }}
           >
-            <div className="min-w-[200px] max-w-[260px] space-y-2 font-sans">
-              <div>
-                <p className="font-semibold text-gray-900 text-sm leading-snug">{selected.name}</p>
-                {selected.category && (
-                  <p className="text-xs text-gray-500 mt-0.5">{selected.category.split(",")[0]}</p>
-                )}
-                {selected.address && (
-                  <p className="text-xs text-gray-600 mt-1">{selected.address}</p>
-                )}
-                {selected.phone && (
-                  <p className="text-xs text-gray-600">{selected.phone}</p>
-                )}
-                {selected.email && (
-                  <p className="text-xs text-brand-600">{selected.email}</p>
-                )}
-                {selected.rating && (
-                  <p className="text-xs text-amber-600 mt-0.5">★ {selected.rating} ({selected.review_count})</p>
-                )}
-              </div>
+            {selectedId === biz.id && (
+              <InfoWindow onCloseClick={() => setSelectedId(null)}>
+                <div className="min-w-[200px] max-w-[260px] space-y-2 font-sans">
+                  <div>
+                    <p className="font-semibold text-gray-900 text-sm leading-snug">{biz.name}</p>
+                    {biz.category && (
+                      <p className="text-xs text-gray-500 mt-0.5">{biz.category.split(",")[0]}</p>
+                    )}
+                    {biz.address && (
+                      <p className="text-xs text-gray-600 mt-1">{biz.address}</p>
+                    )}
+                    {biz.phone && (
+                      <p className="text-xs text-gray-600">{biz.phone}</p>
+                    )}
+                    {biz.email && (
+                      <p className="text-xs text-brand-600">{biz.email}</p>
+                    )}
+                    {biz.rating && (
+                      <p className="text-xs text-amber-600 mt-0.5">★ {biz.rating} ({biz.review_count})</p>
+                    )}
+                  </div>
 
-              <div className="flex gap-1.5 pt-1">
-                <button
-                  onClick={() => handleSave(selected)}
-                  className={`flex-1 rounded-lg px-2 py-1.5 text-xs font-medium transition-colors ${
-                    savedLeadMap[selected.id]
-                      ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-                      : "bg-brand-600 text-white hover:bg-brand-700"
-                  }`}
-                >
-                  {savedLeadMap[selected.id] ? "Saved ✓" : "Save"}
-                </button>
-                <button
-                  onClick={() => { setContactBiz(selected); setSelected(null); }}
-                  className="flex-1 rounded-lg px-2 py-1.5 text-xs font-medium bg-gray-900 text-white hover:bg-gray-700 transition-colors"
-                >
-                  Contact
-                </button>
-                <button
-                  onClick={() => handleHide(selected)}
-                  className="rounded-lg px-2 py-1.5 text-xs font-medium border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors"
-                >
-                  Hide
-                </button>
-              </div>
-            </div>
-          </InfoWindow>
-        )}
+                  <div className="flex gap-1.5 pt-1">
+                    <button
+                      onClick={() => handleSave(biz)}
+                      className={`flex-1 rounded-lg px-2 py-1.5 text-xs font-medium transition-colors ${
+                        savedLeadMap[biz.id]
+                          ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                          : "bg-brand-600 text-white hover:bg-brand-700"
+                      }`}
+                    >
+                      {savedLeadMap[biz.id] ? "Saved ✓" : "Save"}
+                    </button>
+                    <button
+                      onClick={() => { setContactBiz(biz); setSelectedId(null); }}
+                      className="flex-1 rounded-lg px-2 py-1.5 text-xs font-medium bg-gray-900 text-white hover:bg-gray-700 transition-colors"
+                    >
+                      Contact
+                    </button>
+                    <button
+                      onClick={() => handleHide(biz)}
+                      className="rounded-lg px-2 py-1.5 text-xs font-medium border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors"
+                    >
+                      Hide
+                    </button>
+                  </div>
+                </div>
+              </InfoWindow>
+            )}
+          </Marker>
+        ))}
       </GoogleMap>
 
       <ContactModal
