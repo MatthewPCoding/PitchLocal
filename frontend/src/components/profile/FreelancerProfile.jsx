@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "../../hooks/useAuth";
+import { geocodeAddress, formatLocation, parseLocation } from "../../utils/geocode";
 import ServicesList from "./ServicesList";
 import ResumeUpload from "./ResumeUpload";
 import api from "../../services/api";
@@ -8,11 +9,11 @@ import toast from "react-hot-toast";
 export default function FreelancerProfile() {
   const { user, setUser } = useAuth();
   const [form, setForm] = useState({
-    full_name:     user?.full_name  || "",
-    bio:           user?.bio        || "",
-    location:      user?.location   || "",
-    mile_range:    user?.mile_range ?? 10,
-    services:      user?.services   || [],
+    full_name:  user?.full_name  || "",
+    bio:        user?.bio        || "",
+    location:   formatLocation(user?.city, user?.state),
+    mile_range: user?.mile_range ?? 10,
+    services:   user?.services   || [],
   });
   const [saving, setSaving] = useState(false);
 
@@ -24,7 +25,27 @@ export default function FreelancerProfile() {
     e.preventDefault();
     setSaving(true);
     try {
-      const { data } = await api.patch("/profile/me", form);
+      const { city, state } = parseLocation(form.location);
+      const patch = {
+        full_name:  form.full_name,
+        mile_range: form.mile_range,
+        city:       city  || null,
+        state:      state || null,
+      };
+
+      // Geocode the new location so map features work immediately
+      if (city) {
+        const coords = await geocodeAddress(formatLocation(city, state));
+        if (coords) {
+          patch.lat = coords.lat;
+          patch.lng = coords.lng;
+        }
+      } else {
+        patch.lat = null;
+        patch.lng = null;
+      }
+
+      const { data } = await api.patch("/users/me", patch);
       setUser?.(data);
       toast.success("Profile updated");
     } catch {
@@ -53,9 +74,10 @@ export default function FreelancerProfile() {
             type="text"
             value={form.location}
             onChange={(e) => set("location", e.target.value)}
-            placeholder="City, State"
+            placeholder="City, State — e.g. Austin, TX"
             className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
           />
+          <p className="mt-1 text-xs text-gray-400">Used to find nearby businesses</p>
         </div>
       </div>
 

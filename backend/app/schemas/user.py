@@ -10,6 +10,8 @@ class UserRegister(BaseModel):
     email: EmailStr
     password: str
     full_name: str
+    city: Optional[str] = None
+    state: Optional[str] = None
 
     @field_validator("password")
     @classmethod

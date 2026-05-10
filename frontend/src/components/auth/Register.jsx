@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import { validatePasswordStrength } from "../../utils/validators";
+import { parseLocation } from "../../utils/geocode";
 import PasswordStrength from "./PasswordStrength";
 import toast from "react-hot-toast";
 
@@ -9,7 +10,7 @@ export default function Register({ onSwitch }) {
   const { register } = useAuth();
   const navigate = useNavigate();
 
-  const [form, setForm]       = useState({ full_name: "", email: "", password: "", confirm: "" });
+  const [form, setForm]       = useState({ full_name: "", email: "", location: "", password: "", confirm: "" });
   const [loading, setLoading] = useState(false);
 
   const set = (field) => (e) => setForm((f) => ({ ...f, [field]: e.target.value }));
@@ -20,9 +21,10 @@ export default function Register({ onSwitch }) {
     if (pwErrors.length) { toast.error(pwErrors[0]); return; }
     if (form.password !== form.confirm) { toast.error("Passwords do not match"); return; }
 
+    const { city, state } = parseLocation(form.location);
     setLoading(true);
     try {
-      await register(form.email, form.password, form.full_name);
+      await register(form.email, form.password, form.full_name, city || undefined, state || undefined);
       toast.success("Welcome to PitchLocal!");
       navigate("/dashboard");
     } catch (err) {
@@ -58,6 +60,20 @@ export default function Register({ onSwitch }) {
           onChange={set("email")}
           className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
           placeholder="you@example.com"
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Location <span className="text-gray-400 font-normal">(optional)</span>
+        </label>
+        <input
+          type="text"
+          autoComplete="address-level2"
+          value={form.location}
+          onChange={set("location")}
+          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+          placeholder="City, State — e.g. Austin, TX"
         />
       </div>
 

@@ -30,6 +30,8 @@ async def register(body: UserRegister, db: AsyncSession = Depends(get_db)):
         email=body.email,
         password_hash=hash_password(body.password),
         full_name=body.full_name,
+        city=body.city,
+        state=body.state,
     )
     db.add(user)
     await db.flush()
