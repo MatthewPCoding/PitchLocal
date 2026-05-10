@@ -10,6 +10,30 @@ const CONTAINER_STYLE = { width: "100%", height: "calc(100vh - 104px)" };
 const DEFAULT_CENTER  = { lat: 37.7749, lng: -122.4194 };
 const LIBRARIES       = ["places"];
 
+async function lookupPoi(lat, lng, placeId) {
+  try {
+    const params = new URLSearchParams({ lat, lon: lng, format: "json", zoom: "17", namedetails: "1" });
+    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?${params}`, {
+      headers: { "Accept-Language": "en" },
+    });
+    const data = await res.json();
+    if (data.name) {
+      const a = data.address || {};
+      return {
+        _placeId: placeId,
+        name:     data.name,
+        category: a.amenity || a.shop || a.tourism || a.office || "",
+        address:  [a.house_number, a.road].filter(Boolean).join(" ") || null,
+        city:     a.city || a.town || a.village || "",
+        state:    a.state || "",
+        lat, lng,
+        phone: null, email: null, website: null,
+      };
+    }
+  } catch { /* fall through */ }
+  return { _placeId: placeId, name: "Business", lat, lng };
+}
+
 export default function MapView() {
   const { user }                        = useAuth();
   const [businesses, setBusinesses]     = useState([]);
@@ -90,14 +114,9 @@ export default function MapView() {
       setPoiLoading(true);
       const lat = event.latLng.lat();
       const lng = event.latLng.lng();
-      try {
-        const biz = await businessService.poiLookup(lat, lng, event.placeId);
-        setPoiBiz({ ...biz, _placeId: biz.google_place_id });
-      } catch {
-        setPoiBiz({ _placeId: event.placeId, name: "Business", lat, lng });
-      } finally {
-        setPoiLoading(false);
-      }
+      const biz = await lookupPoi(lat, lng, event.placeId);
+      setPoiBiz(biz);
+      setPoiLoading(false);
     } else {
       setSelectedId(null);
       setPoiBiz(null);
