@@ -268,7 +268,14 @@ export default function MapView() {
         center={center}
         zoom={13}
         onClick={handleMapClick}
-        options={{ streetViewControl: false, mapTypeControl: false, fullscreenControl: false }}
+        options={{
+          streetViewControl: false,
+          mapTypeControl: false,
+          fullscreenControl: false,
+          styles: [
+            { featureType: "poi.business", stylers: [{ visibility: "off" }] },
+          ],
+        }}
       >
         {visible.map((biz) => (
           <Marker
