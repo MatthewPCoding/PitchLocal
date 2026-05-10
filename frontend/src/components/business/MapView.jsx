@@ -3,6 +3,7 @@ import { GoogleMap, useJsApiLoader, Marker } from "@react-google-maps/api";
 import { useAuth } from "../../hooks/useAuth";
 import { businessService } from "../../services/business";
 import { leadsService } from "../../services/pipeline";
+import { isChain } from "../../utils/chainBlacklist";
 import ContactModal from "./ContactModal";
 import toast from "react-hot-toast";
 
@@ -180,7 +181,9 @@ export default function MapView() {
       const lat = event.latLng.lat();
       const lng = event.latLng.lng();
       const biz = await lookupPoi(lat, lng, event.placeId);
-      setActiveCard({ biz, isPoi: true });
+      if (!isChain(biz.name)) {
+        setActiveCard({ biz, isPoi: true });
+      }
       setPoiLoading(false);
     } else {
       setActiveCard(null);
