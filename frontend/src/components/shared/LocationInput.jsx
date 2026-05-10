@@ -1,27 +1,43 @@
 import { useState, useEffect, useRef } from "react";
 
-const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+const STATE_ABBR = {
+  "Alabama":"AL","Alaska":"AK","Arizona":"AZ","Arkansas":"AR","California":"CA",
+  "Colorado":"CO","Connecticut":"CT","Delaware":"DE","Florida":"FL","Georgia":"GA",
+  "Hawaii":"HI","Idaho":"ID","Illinois":"IL","Indiana":"IN","Iowa":"IA","Kansas":"KS",
+  "Kentucky":"KY","Louisiana":"LA","Maine":"ME","Maryland":"MD","Massachusetts":"MA",
+  "Michigan":"MI","Minnesota":"MN","Mississippi":"MS","Missouri":"MO","Montana":"MT",
+  "Nebraska":"NE","Nevada":"NV","New Hampshire":"NH","New Jersey":"NJ",
+  "New Mexico":"NM","New York":"NY","North Carolina":"NC","North Dakota":"ND",
+  "Ohio":"OH","Oklahoma":"OK","Oregon":"OR","Pennsylvania":"PA","Rhode Island":"RI",
+  "South Carolina":"SC","South Dakota":"SD","Tennessee":"TN","Texas":"TX","Utah":"UT",
+  "Vermont":"VT","Virginia":"VA","Washington":"WA","West Virginia":"WV",
+  "Wisconsin":"WI","Wyoming":"WY","District of Columbia":"DC",
+};
 
 async function fetchCitySuggestions(input) {
-  if (!API_KEY || input.length < 3) return [];
+  if (input.length < 3) return [];
   try {
-    const res = await fetch("https://places.googleapis.com/v1/places:autocomplete", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Goog-Api-Key": API_KEY,
-      },
-      body: JSON.stringify({
-        input,
-        includedPrimaryTypes: ["locality"],
-        includedRegionCodes: ["us"],
-      }),
+    const params = new URLSearchParams({
+      q: input,
+      format: "json",
+      addressdetails: "1",
+      limit: "6",
+      countrycodes: "us",
+      featuretype: "city",
     });
-    const data = await res.json();
-    return data.suggestions ?? [];
+    const res = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, {
+      headers: { "Accept-Language": "en" },
+    });
+    return await res.json();
   } catch {
     return [];
   }
+}
+
+function formatResult(result) {
+  const city  = result.address?.city || result.address?.town || result.address?.village || result.name;
+  const state = STATE_ABBR[result.address?.state] ?? result.address?.state ?? "";
+  return state ? `${city}, ${state}` : city;
 }
 
 export default function LocationInput({ value, onChange, placeholder, className }) {
@@ -55,15 +71,11 @@ export default function LocationInput({ value, onChange, placeholder, className 
       const results = await fetchCitySuggestions(val);
       setSuggestions(results);
       setOpen(results.length > 0);
-    }, 200);
+    }, 300);
   }
 
-  function handleSelect(suggestion) {
-    const pred = suggestion.placePrediction;
-    const main      = pred.structuredFormat?.mainText?.text ?? "";
-    const secondary = pred.structuredFormat?.secondaryText?.text ?? ""; // "TX, USA"
-    const state     = secondary.split(",")[0].trim();
-    onChange(state ? `${main}, ${state}` : main);
+  function handleSelect(result) {
+    onChange(formatResult(result));
     setSuggestions([]);
     setOpen(false);
   }
@@ -81,18 +93,15 @@ export default function LocationInput({ value, onChange, placeholder, className 
       />
       {open && suggestions.length > 0 && (
         <ul className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
-          {suggestions.map((s, i) => {
-            const pred = s.placePrediction;
-            return (
-              <li
-                key={pred.placeId ?? i}
-                onMouseDown={() => handleSelect(s)}
-                className="px-4 py-2.5 text-sm text-gray-700 hover:bg-brand-50 hover:text-brand-700 cursor-pointer"
-              >
-                {pred.text?.text}
-              </li>
-            );
-          })}
+          {suggestions.map((s, i) => (
+            <li
+              key={s.place_id ?? i}
+              onMouseDown={() => handleSelect(s)}
+              className="px-4 py-2.5 text-sm text-gray-700 hover:bg-brand-50 hover:text-brand-700 cursor-pointer"
+            >
+              {formatResult(s)}
+            </li>
+          ))}
         </ul>
       )}
     </div>
