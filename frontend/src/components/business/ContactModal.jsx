@@ -24,6 +24,7 @@ const TITLES = {
 export default function ContactModal({ business, open, onClose, getLeadId }) {
   const [step, setStep]               = useState(STEP.TYPE);
   const [contactMethod, setMethod]    = useState(null);
+  const [recipient, setRecipient]     = useState(business?.email || "");
   const [subject, setSubject]         = useState("");
   const [body, setBody]               = useState("");
   const [generating, setGenerating]   = useState(false);
@@ -32,6 +33,7 @@ export default function ContactModal({ business, open, onClose, getLeadId }) {
   function reset() {
     setStep(STEP.TYPE);
     setMethod(null);
+    setRecipient(business?.email || "");
     setSubject("");
     setBody("");
   }
@@ -76,7 +78,7 @@ export default function ContactModal({ business, open, onClose, getLeadId }) {
   }
 
   function handleReachOut() {
-    const to = business?.email || "";
+    const to = recipient.trim();
     const s  = encodeURIComponent(subject);
     const b  = encodeURIComponent(body);
     window.location.href = `mailto:${to}?subject=${s}&body=${b}`;
@@ -159,6 +161,21 @@ export default function ContactModal({ business, open, onClose, getLeadId }) {
       {step === STEP.EMAIL_COMPOSE && (
         <div className="space-y-4">
           <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">To</label>
+            <input
+              type="email"
+              value={recipient}
+              onChange={(e) => setRecipient(e.target.value)}
+              placeholder="business@example.com"
+              className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+            />
+            {!recipient && (
+              <p className="text-xs text-amber-600 mt-1">
+                Email not on file — look it up on their website or Google, then paste it here.
+              </p>
+            )}
+          </div>
+          <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Subject</label>
             <input
               type="text"
@@ -173,7 +190,7 @@ export default function ContactModal({ business, open, onClose, getLeadId }) {
             <textarea
               value={body}
               onChange={(e) => setBody(e.target.value)}
-              rows={9}
+              rows={8}
               placeholder="Your pitch…"
               className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none"
             />
