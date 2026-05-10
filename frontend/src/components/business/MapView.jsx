@@ -117,6 +117,7 @@ export default function MapView() {
   const [fetching, setFetching]         = useState(false);
   const [poiLoading, setPoiLoading]     = useState(false);
   const [emailSearching, setEmailSearching] = useState(false);
+  const [emailNotFound, setEmailNotFound]   = useState(false);
   const fetchedRef                      = useRef(false);
 
   const { isLoaded, loadError } = useJsApiLoader({
@@ -176,6 +177,7 @@ export default function MapView() {
 
   async function openCard(biz, isPoi) {
     setActiveCard({ biz, isPoi });
+    setEmailNotFound(false);
     if (!biz.email && (biz.website || biz.name)) {
       setEmailSearching(true);
       try {
@@ -188,8 +190,12 @@ export default function MapView() {
           setActiveCard((prev) =>
             prev ? { ...prev, biz: { ...prev.biz, email: found } } : prev
           );
+        } else {
+          setEmailNotFound(true);
         }
-      } catch { /* best-effort */ }
+      } catch {
+        setEmailNotFound(true);
+      }
       setEmailSearching(false);
     }
   }
@@ -324,6 +330,7 @@ export default function MapView() {
             isPoi={card.isPoi}
             saved={!!savedLeadMap[cardKey(card.biz)]}
             emailSearching={emailSearching}
+            emailNotFound={emailNotFound}
             onSave={() => handleSave(card.biz, card.isPoi)}
             onContact={() => handleContact(card.biz, card.isPoi)}
             onHide={() => handleHide(card.biz)}
@@ -357,7 +364,7 @@ function Stars({ rating }) {
   );
 }
 
-function BusinessPanel({ biz, saved, emailSearching, onSave, onContact, onHide, onClose }) {
+function BusinessPanel({ biz, saved, emailSearching, emailNotFound, onSave, onContact, onHide, onClose }) {
   const category = (biz.category || "").split(",")[0];
   const address  = [biz.address, biz.city, biz.state].filter(Boolean).join(", ");
 
@@ -435,18 +442,20 @@ function BusinessPanel({ biz, saved, emailSearching, onSave, onContact, onHide, 
             </a>
           </div>
         )}
-        {(biz.email || emailSearching) && (
+        {(biz.email || emailSearching || emailNotFound) && (
           <div className="flex items-center gap-3">
             <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
             </svg>
             {biz.email ? (
               <span className="text-sm text-gray-700">{biz.email}</span>
-            ) : (
+            ) : emailSearching ? (
               <span className="text-sm text-gray-400 italic flex items-center gap-1.5">
                 <span className="h-3 w-3 rounded-full border-2 border-gray-300 border-t-brand-500 animate-spin inline-block" />
                 Searching for email…
               </span>
+            ) : (
+              <span className="text-sm text-gray-400 italic">No email found — check their website</span>
             )}
           </div>
         )}
