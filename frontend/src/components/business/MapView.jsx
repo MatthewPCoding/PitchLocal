@@ -47,15 +47,46 @@ async function lookupPoi(lat, lng, placeId) {
     } catch { /* fall through to Nominatim */ }
   }
 
-  // ── 2. Nominatim reverse — free fallback, skips roads ─────────────────
+  // ── 2. Geocoding API with place_id (always enabled, gives business name) ─
+  if (key) {
+    try {
+      const res = await fetch(
+        `https://maps.googleapis.com/maps/api/geocode/json?place_id=${encodeURIComponent(placeId)}&key=${key}`
+      );
+      const d = await res.json();
+      if (d.status === "OK" && d.results[0]) {
+        const r = d.results[0];
+        // Establishments have their name as the first address component
+        const nameComp = r.address_components?.find((c) =>
+          c.types.some((t) => ["establishment", "point_of_interest", "natural_feature"].includes(t))
+        );
+        const name = nameComp?.long_name;
+        if (name) {
+          const category = (r.types || [])
+            .find((t) => !["establishment", "point_of_interest", "geocode", "political"].includes(t))
+            ?? "";
+          return {
+            _placeId: placeId,
+            name,
+            category: category.replace(/_/g, " "),
+            address:  r.formatted_address || null,
+            lat, lng,
+            city: "", state: "", email: null,
+            phone: null, website: null, rating: null, review_count: null, photo: null,
+          };
+        }
+      }
+    } catch { /* fall through */ }
+  }
+
+  // ── 3. Nominatim reverse — last resort, skips roads ───────────────────
   try {
     const params = new URLSearchParams({ lat, lon: lng, format: "json", zoom: "17", namedetails: "1" });
     const res = await fetch(`https://nominatim.openstreetmap.org/reverse?${params}`, {
       headers: { "Accept-Language": "en" },
     });
     const d = await res.json();
-    // Ignore if Nominatim returned a road/highway instead of a POI
-    const isRoad = d.class === "highway" || d.type === "road" || d.type === "residential";
+    const isRoad = ["highway", "road", "residential", "unclassified"].includes(d.type) || d.class === "highway";
     if (d.name && !isRoad) {
       const a = d.address || {};
       return {

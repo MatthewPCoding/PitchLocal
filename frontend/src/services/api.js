@@ -13,6 +13,20 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// On network error (e.g. Render cold-start 503 with no CORS headers), retry once.
+api.interceptors.response.use(
+  (res) => res,
+  async (err) => {
+    const original = err.config;
+    if (!err.response && !original._networkRetry) {
+      original._networkRetry = true;
+      await new Promise((r) => setTimeout(r, 1500));
+      return api(original);
+    }
+    return Promise.reject(err);
+  }
+);
+
 // On 401, attempt a token refresh once; on failure, clear storage.
 api.interceptors.response.use(
   (res) => res,
