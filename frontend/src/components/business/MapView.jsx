@@ -149,7 +149,6 @@ export default function MapView() {
           streetViewControl: false,
           mapTypeControl: false,
           fullscreenControl: false,
-          clickableIcons: false,
         }}
       >
         {visible.map((biz) => (
