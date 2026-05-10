@@ -11,7 +11,7 @@ from app.models.lead import Lead
 from app.models.user import User
 from app.models.pitch import OutreachLog
 from app.schemas.lead import LeadCreate, LeadListResponse, LeadResponse, LeadStatus, LeadUpdate
-from app.schemas.pitch import OutreachLogResponse
+from app.schemas.pitch import OutreachLogCreate, OutreachLogResponse
 
 router = APIRouter()
 
@@ -91,6 +91,24 @@ async def get_outreach_logs(
         select(OutreachLog).where(OutreachLog.lead_id == lead_id).order_by(OutreachLog.sent_at.desc())
     )
     return logs.scalars().all()
+
+
+@router.post("/{lead_id}/outreach", response_model=OutreachLogResponse, status_code=201)
+async def create_outreach_log(
+    lead_id: UUID,
+    body: OutreachLogCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(Lead).where(Lead.id == lead_id, Lead.user_id == current_user.id)
+    )
+    if not result.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Lead not found")
+    log = OutreachLog(lead_id=lead_id, **body.model_dump(exclude={"lead_id"}))
+    db.add(log)
+    await db.flush()
+    return log
 
 
 @router.delete("/{lead_id}", status_code=204)

@@ -7,7 +7,7 @@ from pydantic import BaseModel
 
 
 class BusinessSearchParams(BaseModel):
-    query: str
+    query: str = ""
     city: Optional[str] = None
     state: Optional[str] = None
     lat: Optional[float] = None
