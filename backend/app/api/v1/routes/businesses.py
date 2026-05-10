@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -105,11 +105,11 @@ async def upsert_business(
 
 @router.post("/find-email")
 async def find_business_email(
-    body: dict,
+    website: str = Body(..., embed=True),
     current_user: User = Depends(get_current_user),
 ):
     """Scrape a business website for a contact email address."""
-    website = (body.get("website") or "").strip()
+    website = website.strip()
     if not website:
         raise HTTPException(status_code=422, detail="website is required")
     email = await find_email_for_business(website)
