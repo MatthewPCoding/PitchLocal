@@ -116,6 +116,7 @@ export default function MapView() {
   const [center, setCenter]             = useState(DEFAULT_CENTER);
   const [fetching, setFetching]         = useState(false);
   const [poiLoading, setPoiLoading]     = useState(false);
+  const [emailSearching, setEmailSearching] = useState(false);
   const fetchedRef                      = useRef(false);
 
   const { isLoaded, loadError } = useJsApiLoader({
@@ -173,6 +174,22 @@ export default function MapView() {
     );
   }, [user, isLoaded, fetchBusinesses]);
 
+  async function openCard(biz, isPoi) {
+    setActiveCard({ biz, isPoi });
+    if (!biz.email && biz.website) {
+      setEmailSearching(true);
+      try {
+        const found = await businessService.findEmail(biz.website);
+        if (found) {
+          setActiveCard((prev) =>
+            prev ? { ...prev, biz: { ...prev.biz, email: found } } : prev
+          );
+        }
+      } catch { /* best-effort */ }
+      setEmailSearching(false);
+    }
+  }
+
   async function handleMapClick(event) {
     if (event.placeId) {
       event.stop();
@@ -182,7 +199,7 @@ export default function MapView() {
       const lng = event.latLng.lng();
       const biz = await lookupPoi(lat, lng, event.placeId);
       if (!isChain(biz.name)) {
-        setActiveCard({ biz, isPoi: true });
+        openCard(biz, true);
       }
       setPoiLoading(false);
     } else {
@@ -278,7 +295,7 @@ export default function MapView() {
           <Marker
             key={biz.id}
             position={{ lat: biz.lat, lng: biz.lng }}
-            onClick={() => setActiveCard({ biz, isPoi: false })}
+            onClick={() => openCard(biz, false)}
             icon={savedLeadMap[biz.id] ? {
               path: window.google.maps.SymbolPath.CIRCLE,
               scale: 8,
@@ -302,6 +319,7 @@ export default function MapView() {
             biz={card.biz}
             isPoi={card.isPoi}
             saved={!!savedLeadMap[cardKey(card.biz)]}
+            emailSearching={emailSearching}
             onSave={() => handleSave(card.biz, card.isPoi)}
             onContact={() => handleContact(card.biz, card.isPoi)}
             onHide={() => handleHide(card.biz)}
@@ -335,7 +353,7 @@ function Stars({ rating }) {
   );
 }
 
-function BusinessPanel({ biz, saved, onSave, onContact, onHide, onClose }) {
+function BusinessPanel({ biz, saved, emailSearching, onSave, onContact, onHide, onClose }) {
   const category = (biz.category || "").split(",")[0];
   const address  = [biz.address, biz.city, biz.state].filter(Boolean).join(", ");
 
@@ -413,12 +431,19 @@ function BusinessPanel({ biz, saved, onSave, onContact, onHide, onClose }) {
             </a>
           </div>
         )}
-        {biz.email && (
+        {(biz.email || (emailSearching && biz.website)) && (
           <div className="flex items-center gap-3">
             <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
             </svg>
-            <span className="text-sm text-gray-700">{biz.email}</span>
+            {biz.email ? (
+              <span className="text-sm text-gray-700">{biz.email}</span>
+            ) : (
+              <span className="text-sm text-gray-400 italic flex items-center gap-1.5">
+                <span className="h-3 w-3 rounded-full border-2 border-gray-300 border-t-brand-500 animate-spin inline-block" />
+                Searching for email…
+              </span>
+            )}
           </div>
         )}
       </div>

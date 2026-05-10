@@ -1,5 +1,92 @@
+import re
 import httpx
 from app.core.config import settings
+
+# ── Email finder ──────────────────────────────────────────────────────────────
+
+_EMAIL_RE = re.compile(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}")
+
+# Prefixes that are bulk/automated and not worth cold-outreach
+_SKIP_PREFIXES = {
+    "noreply", "no-reply", "donotreply", "do-not-reply",
+    "bounce", "bounces", "mailer-daemon", "postmaster",
+    "unsubscribe", "listserv",
+}
+
+# Domains that belong to third-party services embedded in pages
+_SKIP_DOMAINS = {
+    "sentry.io", "sentry-cdn.com", "wix.com", "wixapps.net",
+    "wordpress.com", "squarespace.com", "shopify.com",
+    "mailchimp.com", "sendgrid.net", "amazonaws.com",
+    "example.com", "example.org", "yourdomain.com",
+    "google.com", "googlemail.com", "facebook.com",
+    "twitter.com", "instagram.com",
+}
+
+# Contact-page slugs to probe, best first
+_CONTACT_SLUGS = ["/contact", "/contact-us", "/about", "/about-us", "/get-in-touch"]
+
+
+def _extract_domain(url: str) -> str:
+    """Return bare hostname from a URL, stripping www."""
+    try:
+        from urllib.parse import urlparse
+        host = urlparse(url).hostname or ""
+        return host.removeprefix("www.")
+    except Exception:
+        return ""
+
+
+def _score_email(email: str, biz_domain: str) -> int:
+    prefix = email.split("@")[0].lower()
+    domain = email.split("@")[1].lower()
+    score = 0
+    if domain == biz_domain:
+        score += 10
+    # Prefer human-sounding contact addresses
+    if prefix in ("contact", "hello", "hi", "info", "sales", "team", "mail"):
+        score += 3
+    elif prefix in ("support", "help", "admin"):
+        score += 1
+    return score
+
+
+async def find_email_for_business(website: str) -> str | None:
+    """Scrape a business website (homepage + contact pages) for a contact email."""
+    website = website.rstrip("/")
+    if not website.startswith("http"):
+        website = "https://" + website
+
+    biz_domain = _extract_domain(website)
+    urls = [website] + [website + slug for slug in _CONTACT_SLUGS]
+
+    candidates: dict[str, int] = {}  # email → score
+
+    headers = {"User-Agent": "Mozilla/5.0 (compatible; PitchLocal/1.0)"}
+    async with httpx.AsyncClient(timeout=8, follow_redirects=True) as client:
+        for url in urls:
+            try:
+                resp = await client.get(url, headers=headers)
+                if resp.status_code >= 400:
+                    continue
+                for email in _EMAIL_RE.findall(resp.text):
+                    email = email.lower()
+                    prefix, domain = email.split("@", 1)
+                    if domain in _SKIP_DOMAINS:
+                        continue
+                    if any(prefix.startswith(p) for p in _SKIP_PREFIXES):
+                        continue
+                    if email not in candidates:
+                        candidates[email] = _score_email(email, biz_domain)
+            except Exception:
+                continue
+            # Stop once we have something on the business's own domain
+            if any(e.endswith(f"@{biz_domain}") for e in candidates):
+                break
+
+    if not candidates:
+        return None
+    return max(candidates, key=lambda e: candidates[e])
 
 PLACES_BASE = "https://maps.googleapis.com/maps/api/place"
 

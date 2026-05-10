@@ -11,7 +11,7 @@ from app.models.business import Business
 from app.models.lead import Lead, LeadSource
 from app.models.user import User, UserTier
 from app.schemas.business import BusinessListResponse, BusinessResponse, BusinessSearchParams, BusinessUpsert
-from app.services.business_service import search_nearby_businesses
+from app.services.business_service import find_email_for_business, search_nearby_businesses
 
 router = APIRouter()
 
@@ -101,6 +101,19 @@ async def upsert_business(
     db.add(biz)
     await db.flush()
     return biz
+
+
+@router.post("/find-email")
+async def find_business_email(
+    body: dict,
+    current_user: User = Depends(get_current_user),
+):
+    """Scrape a business website for a contact email address."""
+    website = (body.get("website") or "").strip()
+    if not website:
+        raise HTTPException(status_code=422, detail="website is required")
+    email = await find_email_for_business(website)
+    return {"email": email}
 
 
 @router.get("/{business_id}", response_model=BusinessResponse)
