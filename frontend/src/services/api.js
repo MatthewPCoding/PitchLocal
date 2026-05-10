@@ -13,14 +13,19 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// On network error (e.g. Render cold-start 503 with no CORS headers), retry once.
+// Render free tier cold-starts can take 30-60s and return a 503 with no CORS
+// headers, which the browser reports as a network/CORS error (no err.response).
+// Retry up to 3 times with exponential backoff: 3s → 10s → 25s.
+const RETRY_DELAYS = [3000, 10000, 25000];
+
 api.interceptors.response.use(
   (res) => res,
   async (err) => {
     const original = err.config;
-    if (!err.response && !original._networkRetry) {
-      original._networkRetry = true;
-      await new Promise((r) => setTimeout(r, 1500));
+    const attempt = original._retryCount ?? 0;
+    if (!err.response && attempt < RETRY_DELAYS.length) {
+      original._retryCount = attempt + 1;
+      await new Promise((r) => setTimeout(r, RETRY_DELAYS[attempt]));
       return api(original);
     }
     return Promise.reject(err);
