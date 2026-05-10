@@ -11,27 +11,67 @@ const DEFAULT_CENTER  = { lat: 37.7749, lng: -122.4194 };
 const LIBRARIES       = ["places"];
 
 async function lookupPoi(lat, lng, placeId) {
+  const key = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+
+  // ── 1. Places API (New) — rich data when enabled ──────────────────────
+  if (key) {
+    try {
+      const res = await fetch(`https://places.googleapis.com/v1/places/${placeId}`, {
+        headers: {
+          "X-Goog-Api-Key": key,
+          "X-Goog-FieldMask": [
+            "displayName", "formattedAddress", "internationalPhoneNumber",
+            "websiteUri", "rating", "userRatingCount", "primaryTypeDisplayName",
+            "photos",
+          ].join(","),
+        },
+      });
+      if (res.ok) {
+        const d = await res.json();
+        const photo = d.photos?.[0]?.name
+          ? `https://places.googleapis.com/v1/${d.photos[0].name}/media?maxWidthPx=400&key=${key}`
+          : null;
+        return {
+          _placeId:     placeId,
+          name:         d.displayName?.text  || "Business",
+          category:     d.primaryTypeDisplayName?.text || "",
+          address:      d.formattedAddress   || null,
+          phone:        d.internationalPhoneNumber || null,
+          website:      d.websiteUri         || null,
+          rating:       d.rating             || null,
+          review_count: d.userRatingCount    || null,
+          photo,
+          lat, lng, city: "", state: "", email: null,
+        };
+      }
+    } catch { /* fall through to Nominatim */ }
+  }
+
+  // ── 2. Nominatim reverse — free fallback, skips roads ─────────────────
   try {
     const params = new URLSearchParams({ lat, lon: lng, format: "json", zoom: "17", namedetails: "1" });
     const res = await fetch(`https://nominatim.openstreetmap.org/reverse?${params}`, {
       headers: { "Accept-Language": "en" },
     });
-    const data = await res.json();
-    if (data.name) {
-      const a = data.address || {};
+    const d = await res.json();
+    // Ignore if Nominatim returned a road/highway instead of a POI
+    const isRoad = d.class === "highway" || d.type === "road" || d.type === "residential";
+    if (d.name && !isRoad) {
+      const a = d.address || {};
       return {
         _placeId: placeId,
-        name:     data.name,
+        name:     d.name,
         category: a.amenity || a.shop || a.tourism || a.office || "",
         address:  [a.house_number, a.road].filter(Boolean).join(" ") || null,
         city:     a.city || a.town || a.village || "",
         state:    a.state || "",
         lat, lng,
-        phone: null, email: null, website: null, rating: null, review_count: null,
+        phone: null, email: null, website: null, rating: null, review_count: null, photo: null,
       };
     }
   } catch { /* fall through */ }
-  return { _placeId: placeId, name: "Business", lat, lng };
+
+  return { _placeId: placeId, name: "Business", lat, lng, photo: null };
 }
 
 export default function MapView() {
@@ -263,6 +303,13 @@ function BusinessPanel({ biz, saved, onSave, onContact, onHide, onClose }) {
 
   return (
     <div className="bg-white rounded-t-2xl shadow-2xl max-w-lg mx-auto w-full">
+      {/* Photo */}
+      {biz.photo && (
+        <div className="w-full h-36 overflow-hidden rounded-t-2xl">
+          <img src={biz.photo} alt={biz.name} className="w-full h-full object-cover" />
+        </div>
+      )}
+
       {/* Drag handle */}
       <div className="flex justify-center pt-3 pb-1">
         <div className="w-10 h-1 rounded-full bg-gray-300" />
