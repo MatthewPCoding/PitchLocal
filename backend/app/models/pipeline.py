@@ -21,4 +21,4 @@ class Project(Base):
     status = Column(String, default="active")  # active, completed, cancelled
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    lead = relationship("Lead", back_populates="project")
+    lead = relationship("Lead", back_populates="project", lazy="selectin")

@@ -1,5 +1,6 @@
 from sqlalchemy import Column, String, Float, Text, DateTime
 from sqlalchemy.dialects.postgresql import UUID, ARRAY
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.db.database import Base
 import uuid
@@ -23,3 +24,5 @@ class Business(Base):
     review_count = Column(Float, nullable=True)
     description = Column(Text, nullable=True)
     cached_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    leads = relationship("Lead", back_populates="business")

@@ -1,6 +1,6 @@
 from sqlalchemy import Column, String, ForeignKey, DateTime, Enum, Text
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, selectinload  # noqa: F401 — re-exported for route use
 from sqlalchemy.sql import func
 from app.db.database import Base
 import uuid
@@ -33,8 +33,9 @@ class Lead(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     # Relationships
-    user = relationship("User", back_populates="leads")
-    business = relationship("Business")
-    pitches = relationship("Pitch", back_populates="lead")
-    outreach = relationship("OutreachLog", back_populates="lead")
-    project = relationship("Project", back_populates="lead", uselist=False)
+    # lazy="selectin" is required for async SQLAlchemy — lazy loading raises MissingGreenlet
+    user     = relationship("User",        back_populates="leads",    lazy="selectin")
+    business = relationship("Business",    back_populates="leads",    lazy="selectin")
+    pitches  = relationship("Pitch",       back_populates="lead",     lazy="selectin")
+    outreach = relationship("OutreachLog", back_populates="lead",     lazy="selectin")
+    project  = relationship("Project",     back_populates="lead",     lazy="selectin", uselist=False)

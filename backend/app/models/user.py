@@ -30,7 +30,7 @@ class User(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     # Relationships
-    leads = relationship("Lead", back_populates="user")
-    pitches = relationship("Pitch", back_populates="user")
-    notifications = relationship("Notification", back_populates="user")
-    monitors = relationship("Monitor", back_populates="user")
+    leads         = relationship("Lead",         back_populates="user", lazy="selectin")
+    pitches       = relationship("Pitch",        back_populates="user", lazy="selectin")
+    notifications = relationship("Notification", back_populates="user", lazy="selectin")
+    monitors      = relationship("Monitor",      back_populates="user", lazy="selectin")
