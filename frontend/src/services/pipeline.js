@@ -1,7 +1,7 @@
 import api from "./api";
 
 export const leadsService = {
-  list:   (status) => api.get("/leads/", { params: status ? { status } : {} }).then((r) => r.data),
+  list:   (status) => api.get("/leads/", { params: status ? { status } : {} }).then((r) => r.data.results ?? r.data),
   create: (body)   => api.post("/leads/", body).then((r) => r.data),
   update: (id, body) => api.patch(`/leads/${id}`, body).then((r) => r.data),
   remove: (id)     => api.delete(`/leads/${id}`),
