@@ -1,24 +1,34 @@
 import { useState, useEffect, useRef } from "react";
-import { useJsApiLoader } from "@react-google-maps/api";
 
-const LIBRARIES = ["places"];
+const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+
+async function fetchCitySuggestions(input) {
+  if (!API_KEY || input.length < 3) return [];
+  try {
+    const res = await fetch("https://places.googleapis.com/v1/places:autocomplete", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": API_KEY,
+      },
+      body: JSON.stringify({
+        input,
+        includedPrimaryTypes: ["locality"],
+        includedRegionCodes: ["us"],
+      }),
+    });
+    const data = await res.json();
+    return data.suggestions ?? [];
+  } catch {
+    return [];
+  }
+}
 
 export default function LocationInput({ value, onChange, placeholder, className }) {
   const [suggestions, setSuggestions] = useState([]);
   const [open, setOpen]               = useState(false);
-  const serviceRef                    = useRef(null);
   const containerRef                  = useRef(null);
-
-  const { isLoaded } = useJsApiLoader({
-    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "",
-    libraries: LIBRARIES,
-  });
-
-  useEffect(() => {
-    if (isLoaded && window.google?.maps?.places) {
-      serviceRef.current = new window.google.maps.places.AutocompleteService();
-    }
-  }, [isLoaded]);
+  const timerRef                      = useRef(null);
 
   useEffect(() => {
     function close(e) {
@@ -33,31 +43,27 @@ export default function LocationInput({ value, onChange, placeholder, className 
   function handleChange(e) {
     const val = e.target.value;
     onChange(val);
+    clearTimeout(timerRef.current);
 
-    if (!serviceRef.current || val.length < 3) {
+    if (val.length < 3) {
       setSuggestions([]);
       setOpen(false);
       return;
     }
 
-    serviceRef.current.getPlacePredictions(
-      { input: val, types: ["(cities)"], componentRestrictions: { country: "us" } },
-      (predictions, status) => {
-        if (status === window.google.maps.places.PlacesServiceStatus.OK && predictions?.length) {
-          setSuggestions(predictions);
-          setOpen(true);
-        } else {
-          setSuggestions([]);
-          setOpen(false);
-        }
-      }
-    );
+    timerRef.current = setTimeout(async () => {
+      const results = await fetchCitySuggestions(val);
+      setSuggestions(results);
+      setOpen(results.length > 0);
+    }, 200);
   }
 
-  function handleSelect(prediction) {
-    // "Austin, TX, USA" → "Austin, TX"
-    const parts = prediction.description.split(",").map((s) => s.trim());
-    onChange(parts.slice(0, 2).join(", "));
+  function handleSelect(suggestion) {
+    const pred = suggestion.placePrediction;
+    const main      = pred.structuredFormat?.mainText?.text ?? "";
+    const secondary = pred.structuredFormat?.secondaryText?.text ?? ""; // "TX, USA"
+    const state     = secondary.split(",")[0].trim();
+    onChange(state ? `${main}, ${state}` : main);
     setSuggestions([]);
     setOpen(false);
   }
@@ -75,15 +81,18 @@ export default function LocationInput({ value, onChange, placeholder, className 
       />
       {open && suggestions.length > 0 && (
         <ul className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
-          {suggestions.map((s) => (
-            <li
-              key={s.place_id}
-              onMouseDown={() => handleSelect(s)}
-              className="px-4 py-2.5 text-sm text-gray-700 hover:bg-brand-50 hover:text-brand-700 cursor-pointer"
-            >
-              {s.description}
-            </li>
-          ))}
+          {suggestions.map((s, i) => {
+            const pred = s.placePrediction;
+            return (
+              <li
+                key={pred.placeId ?? i}
+                onMouseDown={() => handleSelect(s)}
+                className="px-4 py-2.5 text-sm text-gray-700 hover:bg-brand-50 hover:text-brand-700 cursor-pointer"
+              >
+                {pred.text?.text}
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>
