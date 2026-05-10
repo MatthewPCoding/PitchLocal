@@ -1,4 +1,5 @@
 import axios from "axios";
+import toast from "react-hot-toast";
 import { API_URL } from "../utils/constants";
 
 const api = axios.create({
@@ -13,20 +14,37 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Render free tier cold-starts can take 30-60s and return a 503 with no CORS
-// headers, which the browser reports as a network/CORS error (no err.response).
-// Retry up to 3 times with exponential backoff: 3s → 10s → 25s.
-const RETRY_DELAYS = [3000, 10000, 25000];
+// Render free tier cold-starts can take up to 60s and return a 503 with no
+// CORS headers, which the browser reports as a network error (no err.response).
+// Retry up to 5 times with increasing delays covering ~70s total.
+// On the first retry show a toast so the user knows what's happening.
+const RETRY_DELAYS = [2000, 5000, 12000, 25000, 30000];
+let warmingToastId = null;
 
 api.interceptors.response.use(
-  (res) => res,
+  (res) => {
+    // Dismiss the warming toast as soon as any request succeeds.
+    if (warmingToastId) {
+      toast.dismiss(warmingToastId);
+      warmingToastId = null;
+    }
+    return res;
+  },
   async (err) => {
     const original = err.config;
     const attempt = original._retryCount ?? 0;
     if (!err.response && attempt < RETRY_DELAYS.length) {
+      if (attempt === 0 && !warmingToastId) {
+        warmingToastId = toast.loading("Server is warming up, please wait…");
+      }
       original._retryCount = attempt + 1;
       await new Promise((r) => setTimeout(r, RETRY_DELAYS[attempt]));
       return api(original);
+    }
+    // All retries exhausted — dismiss the toast and surface an error.
+    if (warmingToastId) {
+      toast.dismiss(warmingToastId);
+      warmingToastId = null;
     }
     return Promise.reject(err);
   }
