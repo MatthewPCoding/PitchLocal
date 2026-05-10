@@ -58,6 +58,7 @@ async def create_project(
     project = Project(**body.model_dump())
     db.add(project)
     await db.flush()
+    await db.refresh(project)
     return project
 
 
@@ -96,6 +97,7 @@ async def update_project(
     for field, value in body.model_dump(exclude_unset=True).items():
         setattr(project, field, value)
     await db.flush()
+    await db.refresh(project)
     return project
 
 
@@ -136,6 +138,7 @@ async def create_monitor(
     monitor = Monitor(user_id=current_user.id, **body.model_dump())
     db.add(monitor)
     await db.flush()
+    await db.refresh(monitor)
     return monitor
 
 
@@ -155,6 +158,7 @@ async def update_monitor(
     for field, value in body.model_dump(exclude_unset=True).items():
         setattr(monitor, field, value)
     await db.flush()
+    await db.refresh(monitor)
     return monitor
 
 

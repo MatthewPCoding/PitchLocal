@@ -136,6 +136,7 @@ async def create_pitch(
     )
     db.add(pitch)
     await db.flush()
+    await db.refresh(pitch)
     return pitch
 
 
@@ -185,6 +186,7 @@ async def update_pitch(
     for field, value in body.model_dump(exclude_unset=True).items():
         setattr(pitch, field, value)
     await db.flush()
+    await db.refresh(pitch)
     return pitch
 
 
@@ -217,4 +219,5 @@ async def send_pitch(
     db.add(log)
     pitch.sent = True
     await db.flush()
+    await db.refresh(log)
     return log

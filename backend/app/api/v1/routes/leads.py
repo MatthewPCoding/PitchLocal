@@ -39,6 +39,7 @@ async def create_lead(
     lead = Lead(user_id=current_user.id, **body.model_dump())
     db.add(lead)
     await db.flush()
+    await db.refresh(lead)
     return lead
 
 
@@ -73,6 +74,7 @@ async def update_lead(
     for field, value in body.model_dump(exclude_unset=True).items():
         setattr(lead, field, value)
     await db.flush()
+    await db.refresh(lead)
     return lead
 
 
@@ -108,6 +110,7 @@ async def create_outreach_log(
     log = OutreachLog(lead_id=lead_id, **body.model_dump(exclude={"lead_id"}))
     db.add(log)
     await db.flush()
+    await db.refresh(log)
     return log
 
 

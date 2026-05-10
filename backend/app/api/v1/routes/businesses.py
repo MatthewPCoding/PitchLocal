@@ -74,6 +74,7 @@ async def search_businesses(
             biz = Business(**place)
             db.add(biz)
             await db.flush()
+            await db.refresh(biz)
             businesses.append(biz)
 
     return BusinessListResponse(results=businesses, total=len(businesses))
@@ -100,6 +101,7 @@ async def upsert_business(
     biz = Business(**body.model_dump(exclude_none=True))
     db.add(biz)
     await db.flush()
+    await db.refresh(biz)
     return biz
 
 
