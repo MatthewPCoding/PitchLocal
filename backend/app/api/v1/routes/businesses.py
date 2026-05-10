@@ -10,7 +10,7 @@ from app.db.database import get_db
 from app.models.business import Business
 from app.models.lead import Lead, LeadSource
 from app.models.user import User, UserTier
-from app.schemas.business import BusinessListResponse, BusinessResponse, BusinessSearchParams
+from app.schemas.business import BusinessListResponse, BusinessResponse, BusinessSearchParams, BusinessUpsert
 from app.services.business_service import search_nearby_businesses
 
 router = APIRouter()
@@ -77,6 +77,29 @@ async def search_businesses(
             businesses.append(biz)
 
     return BusinessListResponse(results=businesses, total=len(businesses))
+
+
+@router.post("/upsert", response_model=BusinessResponse)
+async def upsert_business(
+    body: BusinessUpsert,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Find-or-create a business by google_place_id (used when saving a map POI click)."""
+    existing = None
+    if body.google_place_id:
+        result = await db.execute(
+            select(Business).where(Business.google_place_id == body.google_place_id)
+        )
+        existing = result.scalar_one_or_none()
+
+    if existing:
+        return existing
+
+    biz = Business(**body.model_dump(exclude_none=True))
+    db.add(biz)
+    await db.flush()
+    return biz
 
 
 @router.get("/{business_id}", response_model=BusinessResponse)

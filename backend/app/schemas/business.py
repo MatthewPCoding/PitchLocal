@@ -36,6 +36,20 @@ class BusinessResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class BusinessUpsert(BaseModel):
+    google_place_id: Optional[str] = None
+    name: str
+    category: Optional[str] = None
+    address: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    lat: Optional[float] = None
+    lng: Optional[float] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    website: Optional[str] = None
+
+
 class BusinessListResponse(BaseModel):
     results: list[BusinessResponse]
     total: int
