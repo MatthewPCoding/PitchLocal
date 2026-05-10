@@ -13,7 +13,6 @@ class NotificationResponse(BaseModel):
     title: str
     message: str
     read: bool
-    is_read: bool
     link: Optional[str] = None
     created_at: datetime
 

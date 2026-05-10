@@ -25,4 +25,4 @@ class Business(Base):
     description = Column(Text, nullable=True)
     cached_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    leads = relationship("Lead", back_populates="business")
+    leads = relationship("Lead", back_populates="business", lazy="selectin")

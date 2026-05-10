@@ -171,3 +171,4 @@ async def delete_monitor(
     if not monitor:
         raise HTTPException(status_code=404, detail="Monitor not found")
     await db.delete(monitor)
+    await db.flush()

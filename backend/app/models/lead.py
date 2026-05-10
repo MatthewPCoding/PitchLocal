@@ -1,6 +1,6 @@
 from sqlalchemy import Column, String, ForeignKey, DateTime, Enum, Text
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import relationship, selectinload  # noqa: F401 — re-exported for route use
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.db.database import Base
 import uuid

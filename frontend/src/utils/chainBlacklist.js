@@ -18,7 +18,7 @@ const CHAINS = new Set([
   "red robin","bob evans","waffle house","golden corral",
   // Coffee / bakery
   "starbucks","dunkin","dunkin'","dunkin donuts","dunkin' donuts","tim hortons",
-  "costa coffee",
+  "costa coffee","mcdonald's mccafé","mccafé",
   // Convenience / dollar
   "7-eleven","7-11","circle k","wawa","sheetz",
   "dollar tree","dollar general","family dollar","five below",
