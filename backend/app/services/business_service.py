@@ -6,6 +6,15 @@ from app.core.config import settings
 
 _EMAIL_RE = re.compile(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}")
 
+# File/asset extensions that appear after @ in filenames (e.g. flags@2x.png)
+_FAKE_TLDS = {
+    "png", "jpg", "jpeg", "gif", "svg", "webp", "ico", "bmp", "tiff", "avif",
+    "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx",
+    "js", "jsx", "ts", "tsx", "css", "html", "htm", "xml", "json", "map",
+    "mp4", "mp3", "avi", "mov", "wav", "ogg", "woff", "woff2", "ttf", "eot",
+    "zip", "tar", "gz", "min",
+}
+
 # Prefixes that are bulk/automated and not worth cold-outreach
 _SKIP_PREFIXES = {
     "noreply", "no-reply", "donotreply", "do-not-reply",
@@ -72,6 +81,9 @@ async def find_email_for_business(website: str) -> str | None:
                 for email in _EMAIL_RE.findall(resp.text):
                     email = email.lower()
                     prefix, domain = email.split("@", 1)
+                    tld = domain.rsplit(".", 1)[-1]
+                    if tld in _FAKE_TLDS:
+                        continue
                     if domain in _SKIP_DOMAINS:
                         continue
                     if any(prefix.startswith(p) for p in _SKIP_PREFIXES):
