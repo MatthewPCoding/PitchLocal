@@ -10,36 +10,6 @@ const CONTAINER_STYLE = { width: "100%", height: "calc(100vh - 104px)" };
 const DEFAULT_CENTER  = { lat: 37.7749, lng: -122.4194 };
 const LIBRARIES       = ["places"];
 
-// Fetch business details from OpenStreetMap for a clicked POI
-async function lookupPoi(lat, lng, placeId) {
-  const query = `[out:json][timeout:5];node["name"](around:50,${lat},${lng});out body 3;`;
-  try {
-    const res = await fetch("https://overpass-api.de/api/interpreter", {
-      method: "POST",
-      body: new URLSearchParams({ data: query }),
-    });
-    const data = await res.json();
-    const el = data.elements?.[0];
-    if (el?.tags?.name) {
-      const t = el.tags;
-      return {
-        _placeId: placeId,
-        name:     t.name,
-        category: t.amenity || t.shop || t.tourism || "",
-        address:  [t["addr:housenumber"], t["addr:street"]].filter(Boolean).join(" "),
-        city:     t["addr:city"]  || "",
-        state:    t["addr:state"] || "",
-        lat:      el.lat,
-        lng:      el.lon,
-        phone:    t.phone   || t["contact:phone"]   || null,
-        email:    t.email   || t["contact:email"]   || null,
-        website:  t.website || t["contact:website"] || null,
-      };
-    }
-  } catch { /* fall through */ }
-  return { _placeId: placeId, name: "Business", lat, lng };
-}
-
 export default function MapView() {
   const { user }                        = useAuth();
   const [businesses, setBusinesses]     = useState([]);
@@ -120,9 +90,14 @@ export default function MapView() {
       setPoiLoading(true);
       const lat = event.latLng.lat();
       const lng = event.latLng.lng();
-      const biz = await lookupPoi(lat, lng, event.placeId);
-      setPoiBiz(biz);
-      setPoiLoading(false);
+      try {
+        const biz = await businessService.poiLookup(lat, lng, event.placeId);
+        setPoiBiz({ ...biz, _placeId: biz.google_place_id });
+      } catch {
+        setPoiBiz({ _placeId: event.placeId, name: "Business", lat, lng });
+      } finally {
+        setPoiLoading(false);
+      }
     } else {
       setSelectedId(null);
       setPoiBiz(null);

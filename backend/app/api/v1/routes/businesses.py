@@ -79,6 +79,45 @@ async def search_businesses(
     return BusinessListResponse(results=businesses, total=len(businesses))
 
 
+@router.get("/poi-lookup", response_model=BusinessUpsert)
+async def poi_lookup(
+    lat: float,
+    lng: float,
+    place_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    """Look up a Google Maps POI via Overpass and return basic business data."""
+    import httpx
+    query = f"""[out:json][timeout:5];node["name"](around:50,{lat},{lng});out body 3;"""
+    try:
+        async with httpx.AsyncClient(timeout=8) as client:
+            resp = await client.post(
+                "https://overpass-api.de/api/interpreter",
+                data={"data": query},
+            )
+            data = resp.json()
+        el = (data.get("elements") or [None])[0]
+        if el and el.get("tags", {}).get("name"):
+            t = el["tags"]
+            address = " ".join(filter(None, [t.get("addr:housenumber"), t.get("addr:street")]))
+            return BusinessUpsert(
+                google_place_id=place_id,
+                name=t["name"],
+                category=t.get("amenity") or t.get("shop") or t.get("tourism"),
+                address=address or None,
+                city=t.get("addr:city"),
+                state=t.get("addr:state"),
+                lat=el["lat"],
+                lng=el["lon"],
+                phone=t.get("phone") or t.get("contact:phone"),
+                email=t.get("email") or t.get("contact:email"),
+                website=t.get("website") or t.get("contact:website"),
+            )
+    except Exception:
+        pass
+    return BusinessUpsert(google_place_id=place_id, name="Business", lat=lat, lng=lng)
+
+
 @router.post("/upsert", response_model=BusinessResponse)
 async def upsert_business(
     body: BusinessUpsert,
