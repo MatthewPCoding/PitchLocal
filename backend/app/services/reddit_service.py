@@ -17,11 +17,15 @@ async def async_search_subreddit(subreddit: str, keywords: list[str], limit: int
         ) as client:
             resp = await client.get(
                 f"https://www.reddit.com/r/{subreddit}/search.json",
-                params={"q": query, "sort": "new", "limit": limit, "restrict_sr": "on"},
+                params={"q": query, "sort": "new", "limit": limit, "restrict_sr": "on", "raw_json": "1"},
             )
         if resp.status_code != 200:
             return []
-        children = resp.json().get("data", {}).get("children", [])
+        body = resp.json()
+        # Reddit sometimes wraps in a list [listing, comments]
+        if isinstance(body, list):
+            body = body[0]
+        children = body.get("data", {}).get("children", [])
     except Exception:
         return []
 

@@ -30,7 +30,7 @@ async def _discord_discovery(keyword: str, limit: int) -> list[dict]:
             )
         if resp.status_code != 200:
             return []
-        guilds = resp.json().get("guilds", [])
+        guilds = resp.json().get("hits", [])
     except Exception:
         return []
 
