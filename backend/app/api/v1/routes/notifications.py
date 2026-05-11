@@ -44,6 +44,7 @@ async def mark_read(
         )
         .values(read=True)
     )
+    await db.flush()
 
 
 @router.post("/read-all", status_code=204)
@@ -56,3 +57,4 @@ async def mark_all_read(
         .where(Notification.user_id == current_user.id)
         .values(read=True)
     )
+    await db.flush()

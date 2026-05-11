@@ -24,8 +24,9 @@ class Pitch(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     # Relationships
-    user = relationship("User", back_populates="pitches", lazy="selectin")
-    lead = relationship("Lead", back_populates="pitches", lazy="selectin")
+    user         = relationship("User",       back_populates="pitches",       lazy="selectin")
+    lead         = relationship("Lead",       back_populates="pitches",       lazy="selectin")
+    outreach_logs = relationship("OutreachLog", back_populates="pitch",       lazy="selectin")
 
 class OutreachLog(Base):
     __tablename__ = "outreach_logs"
@@ -39,4 +40,5 @@ class OutreachLog(Base):
     sent_at = Column(DateTime(timezone=True), server_default=func.now())
     responded_at = Column(DateTime(timezone=True), nullable=True)
 
-    lead = relationship("Lead", back_populates="outreach", lazy="selectin")
+    lead  = relationship("Lead",  back_populates="outreach", lazy="selectin")
+    pitch = relationship("Pitch", back_populates="outreach_logs", lazy="selectin")

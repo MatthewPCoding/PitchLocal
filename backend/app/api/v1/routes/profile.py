@@ -26,4 +26,5 @@ async def update_profile(
     for field, value in body.model_dump(exclude_unset=True).items():
         setattr(current_user, field, value)
     await db.flush()
+    await db.refresh(current_user)
     return current_user

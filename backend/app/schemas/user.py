@@ -60,5 +60,6 @@ class UserResponse(BaseModel):
     mile_range: float
     notification_preference: str
     created_at: datetime
+    updated_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}
