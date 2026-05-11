@@ -1,5 +1,47 @@
+import httpx
 import praw
 from app.core.config import settings
+
+_REDDIT_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (compatible; PitchLocal/1.0; +https://pitchlocal.app)",
+    "Accept": "application/json",
+}
+
+
+async def async_search_subreddit(subreddit: str, keywords: list[str], limit: int = 25) -> list[dict]:
+    """Search using Reddit's public JSON API — no API credentials required."""
+    query = " OR ".join(keywords[:10])
+    try:
+        async with httpx.AsyncClient(
+            headers=_REDDIT_HEADERS, timeout=15, follow_redirects=True
+        ) as client:
+            resp = await client.get(
+                f"https://www.reddit.com/r/{subreddit}/search.json",
+                params={"q": query, "sort": "new", "limit": limit, "restrict_sr": "on"},
+            )
+        if resp.status_code != 200:
+            return []
+        children = resp.json().get("data", {}).get("children", [])
+    except Exception:
+        return []
+
+    results = []
+    for p in children:
+        d = p.get("data", {})
+        url = d.get("permalink", "")
+        if not url:
+            continue
+        results.append({
+            "platform": "reddit",
+            "source_url": f"https://reddit.com{url}",
+            "title": d.get("title", ""),
+            "content": (d.get("selftext") or "")[:500],
+            "subreddit": d.get("subreddit", subreddit),
+            "created_utc": d.get("created_utc", 0),
+            "score": d.get("score", 0),
+        })
+    return results
+
 
 def get_reddit_client():
     return praw.Reddit(

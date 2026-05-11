@@ -6,7 +6,6 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import settings
 from app.core.dependencies import get_current_user
 from app.db.database import get_db
 from app.models.lead import Lead
@@ -51,11 +50,8 @@ async def reddit_search(
     services: str = Query(..., description="Comma-separated service names"),
     current_user: User = Depends(get_current_user),
 ):
-    """Search Reddit across relevant subreddits for each selected service."""
-    if not settings.REDDIT_CLIENT_ID or not settings.REDDIT_CLIENT_SECRET:
-        return []
-
-    from app.services.reddit_service import search_subreddit
+    """Search Reddit across relevant subreddits using the public JSON API."""
+    from app.services.reddit_service import async_search_subreddit
 
     service_list = [s.strip() for s in services.split(",") if s.strip()]
 
@@ -72,7 +68,7 @@ async def reddit_search(
 
     async def _search(sub: str) -> list[dict]:
         try:
-            return await asyncio.to_thread(search_subreddit, sub, kw_list, 10)
+            return await async_search_subreddit(sub, kw_list, 10)
         except Exception:
             return []
 
