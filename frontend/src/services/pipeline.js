@@ -5,8 +5,9 @@ export const leadsService = {
   create:      (body)   => api.post("/leads/", body).then((r) => r.data),
   update:      (id, b)  => api.patch(`/leads/${id}`, b).then((r) => r.data),
   remove:      (id)     => api.delete(`/leads/${id}`),
-  redditSearch:(svcs)   => api.get("/leads/reddit-search", { params: { services: svcs.join(",") } }).then((r) => r.data),
-  bulkCreate:  (leads)  => api.post("/leads/bulk", leads).then((r) => r.data),
+  redditSearch:  (svcs) => api.get("/leads/reddit-search",  { params: { services: svcs.join(",") } }).then((r) => r.data),
+  discordSearch: (svcs) => api.get("/leads/discord-search", { params: { services: svcs.join(",") } }).then((r) => r.data),
+  bulkCreate:    (leads) => api.post("/leads/bulk", leads).then((r) => r.data),
 };
 
 export const projectsService = {

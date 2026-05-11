@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { leadsService } from "../services/pipeline";
 
-// ── Static data ───────────────────────────────────────────────────────────────
+// ── Constants ─────────────────────────────────────────────────────────────────
 
 const SERVICES = [
   "Web Development", "Mobile App Development", "Brand Design",
@@ -10,49 +10,36 @@ const SERVICES = [
   "Video Production", "Photography", "Bookkeeping", "Consulting",
 ];
 
-const DISCORD_MAP = {
-  "Web Development": [
-    { name: "Reactiflux",               desc: "The largest React & JS community", members: "200K+", invite: "https://discord.gg/reactiflux",   tag: "React / JS"  },
-    { name: "Nodeiflux",                desc: "Node.js developers & enthusiasts", members: "35K+",  invite: "https://discord.gg/vUsrbjGT6",   tag: "Node.js"     },
-    { name: "The Programmer's Hangout", desc: "General programming & career help", members: "100K+", invite: "https://discord.gg/programming",  tag: "General"     },
-  ],
-  "Mobile App Development": [
-    { name: "Flutter Community",        desc: "Flutter & Dart developers worldwide",       members: "80K+",  invite: "https://discord.gg/N7Yshp4", tag: "Flutter"       },
-    { name: "React Native Community",   desc: "Cross-platform mobile development",         members: "45K+",  invite: "https://discord.gg/react-native", tag: "React Native" },
-  ],
-  "Brand Design": [
-    { name: "Dribbble Community",       desc: "Designers sharing work & finding clients",  members: "50K+",  invite: "https://discord.gg/dribbble",         tag: "Design"    },
-    { name: "Designer Hangout",         desc: "UX/UI design community & critique",         members: "25K+",  invite: "https://discord.gg/designerhangout",  tag: "UX / UI"   },
-    { name: "Creativehive",             desc: "Creative professionals & freelancers",       members: "15K+",  invite: "https://discord.gg/creativehive",     tag: "Creative"  },
-  ],
-  "Social Media Management": [
-    { name: "Social Media Marketing",   desc: "Strategy, campaigns & analytics",           members: "30K+",  invite: "https://discord.gg/smmarketing",      tag: "Marketing" },
-    { name: "Creator Economy",          desc: "Content creators & digital entrepreneurs",  members: "20K+",  invite: "https://discord.gg/creatoreconomy",   tag: "Content"   },
-  ],
-  "SEO / Digital Marketing": [
-    { name: "Traffic Think Tank",       desc: "SEO & organic traffic strategies",          members: "10K+",  invite: "https://discord.gg/trafficthinktank", tag: "SEO"           },
-    { name: "SEO Signals Lab",          desc: "Technical SEO & analytics community",       members: "8K+",   invite: "https://discord.gg/seosignals",       tag: "Technical SEO" },
-  ],
-  "Copywriting": [
-    { name: "Copywriter Club",          desc: "Copywriters sharing tips & finding work",   members: "15K+",  invite: "https://discord.gg/copywriterclub",   tag: "Copy"     },
-    { name: "Smart Blogger",            desc: "Content writers & bloggers community",       members: "12K+",  invite: "https://discord.gg/smartblogger",     tag: "Blogging" },
-  ],
-  "Video Production": [
-    { name: "Video Creators",           desc: "YouTubers & video content creators",        members: "25K+",  invite: "https://discord.gg/videocreators",    tag: "YouTube" },
-    { name: "Filmmakers",               desc: "Independent filmmakers & videographers",    members: "18K+",  invite: "https://discord.gg/filmmakers",        tag: "Film"    },
-  ],
-  "Photography": [
-    { name: "Photography Hub",          desc: "Photographers sharing work & finding clients", members: "40K+", invite: "https://discord.gg/photographyhub", tag: "Photo"        },
-    { name: "Photographers Community",  desc: "Professional & hobbyist photographers",    members: "22K+",  invite: "https://discord.gg/photographers",    tag: "Professional" },
-  ],
-  "Bookkeeping": [
-    { name: "Accounting & Finance Hub", desc: "Accountants, bookkeepers & finance pros",  members: "12K+",  invite: "https://discord.gg/accountingfinance", tag: "Finance" },
-  ],
-  "Consulting": [
-    { name: "Indie Consultants",        desc: "Independent consultants & advisors",        members: "8K+",   invite: "https://discord.gg/indieconsultants", tag: "Consulting" },
-    { name: "MicroConf",                desc: "Bootstrapped SaaS & consulting community", members: "15K+",  invite: "https://discord.gg/microconf",         tag: "Business"   },
-  ],
-};
+const FILTER_OPTIONS = [
+  { value: "popular",    label: "Most Popular" },
+  { value: "recent",     label: "Recent"       },
+  { value: "ascending",  label: "A → Z"        },
+  { value: "descending", label: "Z → A"        },
+];
+
+// ── Sort helpers ──────────────────────────────────────────────────────────────
+
+function sortPosts(posts, filter) {
+  const arr = [...posts];
+  switch (filter) {
+    case "recent":     return arr.sort((a, b) => b.created_utc - a.created_utc);
+    case "popular":    return arr.sort((a, b) => b.score - a.score);
+    case "ascending":  return arr.sort((a, b) => (a.title ?? "").localeCompare(b.title ?? ""));
+    case "descending": return arr.sort((a, b) => (b.title ?? "").localeCompare(a.title ?? ""));
+    default:           return arr;
+  }
+}
+
+function sortServers(servers, filter) {
+  const arr = [...servers];
+  switch (filter) {
+    case "recent":     return arr.sort((a, b) => (b.online ?? 0) - (a.online ?? 0));
+    case "popular":    return arr.sort((a, b) => (b.members ?? 0) - (a.members ?? 0));
+    case "ascending":  return arr.sort((a, b) => (a.name ?? "").localeCompare(b.name ?? ""));
+    case "descending": return arr.sort((a, b) => (b.name ?? "").localeCompare(a.name ?? ""));
+    default:           return arr;
+  }
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -67,28 +54,36 @@ function fmtScore(n) {
   return n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n ?? 0);
 }
 
-function getDiscordServers(services) {
-  const seen = new Set();
-  const out  = [];
-  for (const svc of services) {
-    for (const server of DISCORD_MAP[svc] ?? []) {
-      if (!seen.has(server.name)) {
-        seen.add(server.name);
-        out.push(server);
-      }
-    }
-  }
-  return out;
+function fmtMembers(n) {
+  if (!n) return "0";
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1000)      return `${(n / 1000).toFixed(1)}k`;
+  return String(n);
 }
 
-// ── Sub-components ────────────────────────────────────────────────────────────
+// ── FilterSelect ──────────────────────────────────────────────────────────────
+
+function FilterSelect({ value, onChange }) {
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="ml-auto text-xs border border-gray-200 rounded-md px-2 py-1 text-gray-600 bg-white focus:outline-none focus:ring-1 focus:ring-brand-400"
+    >
+      {FILTER_OPTIONS.map((o) => (
+        <option key={o.value} value={o.value}>{o.label}</option>
+      ))}
+    </select>
+  );
+}
+
+// ── RedditCard ────────────────────────────────────────────────────────────────
 
 function RedditCard({ post, selected, onToggle, onConnect, connected }) {
   return (
     <div className={`relative rounded-xl border bg-white p-4 transition-all duration-150 ${
       selected ? "border-brand-400 ring-2 ring-brand-200" : "border-gray-200 hover:border-gray-300"
     }`}>
-      {/* Checkbox */}
       <button
         onClick={onToggle}
         className={`absolute top-3 right-3 h-5 w-5 rounded border-2 flex items-center justify-center transition-colors ${
@@ -131,7 +126,11 @@ function RedditCard({ post, selected, onToggle, onConnect, connected }) {
   );
 }
 
+// ── DiscordCard ───────────────────────────────────────────────────────────────
+
 function DiscordCard({ server, selected, onToggle }) {
+  const tag = Array.isArray(server.tags) ? server.tags[0] : server.tag;
+
   return (
     <div
       className={`relative rounded-xl border bg-white p-4 cursor-pointer transition-all duration-150 hover:shadow-sm ${
@@ -139,7 +138,6 @@ function DiscordCard({ server, selected, onToggle }) {
       }`}
       onClick={onToggle}
     >
-      {/* Checkbox */}
       <div className={`absolute top-3 right-3 h-5 w-5 rounded border-2 flex items-center justify-center transition-colors ${
         selected ? "bg-indigo-600 border-indigo-600" : "border-gray-300"
       }`}>
@@ -151,31 +149,53 @@ function DiscordCard({ server, selected, onToggle }) {
       </div>
 
       <div className="flex items-start gap-3 pr-8">
-        {/* Discord icon */}
         <div className="shrink-0 h-9 w-9 rounded-lg bg-indigo-100 flex items-center justify-center">
           <svg className="h-5 w-5 text-indigo-600" viewBox="0 0 24 24" fill="currentColor">
             <path d="M20.317 4.37a19.791 19.791 0 00-4.885-1.515.074.074 0 00-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 00-5.487 0 12.64 12.64 0 00-.617-1.25.077.077 0 00-.079-.037A19.736 19.736 0 003.677 4.37a.07.07 0 00-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 00.031.057 19.9 19.9 0 005.993 3.03.078.078 0 00.084-.028 14.09 14.09 0 001.226-1.994.076.076 0 00-.041-.106 13.107 13.107 0 01-1.872-.892.077.077 0 01-.008-.128 10.2 10.2 0 00.372-.292.074.074 0 01.077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 01.078.01c.12.098.246.198.373.292a.077.077 0 01-.006.127 12.299 12.299 0 01-1.873.892.077.077 0 00-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 00.084.028 19.839 19.839 0 006.002-3.03.077.077 0 00.032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 00-.031-.03z"/>
           </svg>
         </div>
         <div className="min-w-0">
-          <p className="text-sm font-semibold text-gray-900">{server.name}</p>
-          <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{server.desc}</p>
-          <div className="flex items-center gap-2 mt-2">
-            <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-600">{server.tag}</span>
-            <span className="text-xs text-gray-400">{server.members} members</span>
+          <p className="text-sm font-semibold text-gray-900 truncate">{server.name}</p>
+          <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{server.desc || "Discord community server"}</p>
+          <div className="flex items-center gap-2 mt-2 flex-wrap">
+            {tag && (
+              <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-600">{tag}</span>
+            )}
+            {server.members > 0 && (
+              <span className="text-xs text-gray-400">{fmtMembers(server.members)} members</span>
+            )}
+            {server.online > 0 && (
+              <span className="flex items-center gap-1 text-xs text-green-600">
+                <span className="h-1.5 w-1.5 rounded-full bg-green-500 inline-block" />
+                {fmtMembers(server.online)} online
+              </span>
+            )}
           </div>
         </div>
       </div>
 
-      <a
-        href={server.invite}
-        target="_blank"
-        rel="noopener noreferrer"
-        onClick={(e) => e.stopPropagation()}
-        className="mt-3 block w-full rounded-lg border border-indigo-200 px-3 py-1.5 text-center text-xs font-semibold text-indigo-700 hover:bg-indigo-50 transition-colors"
-      >
-        Join Server ↗
-      </a>
+      {server.invite && (
+        <a
+          href={server.invite}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          className="mt-3 block w-full rounded-lg border border-indigo-200 px-3 py-1.5 text-center text-xs font-semibold text-indigo-700 hover:bg-indigo-50 transition-colors"
+        >
+          Join Server ↗
+        </a>
+      )}
+    </div>
+  );
+}
+
+// ── Spinner ───────────────────────────────────────────────────────────────────
+
+function PanelSpinner({ color, label }) {
+  return (
+    <div className="flex flex-col items-center justify-center h-full gap-3 text-gray-400">
+      <div className={`h-7 w-7 animate-spin rounded-full border-[3px] ${color} border-t-transparent`} />
+      <span className="text-sm">{label}</span>
     </div>
   );
 }
@@ -183,24 +203,31 @@ function DiscordCard({ server, selected, onToggle }) {
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function OnlinePage() {
-  const [step, setStep]                   = useState("select"); // "select" | "results"
-  const [mounted, setMounted]             = useState(false);
-  const [selected, setSelected]           = useState(new Set());
+  const [step, setStep]     = useState("select");
+  const [mounted, setMounted] = useState(false);
+  const [selected, setSelected] = useState(new Set());
+
+  // Reddit state
   const [redditPosts, setRedditPosts]     = useState([]);
   const [redditLoading, setRedditLoading] = useState(false);
   const [redditError, setRedditError]     = useState(null);
-  const [discordServers, setDiscordServers] = useState([]);
+  const [redditFilter, setRedditFilter]   = useState("popular");
 
-  // Selections for sticky bar
-  const [redditSel, setRedditSel]         = useState(new Set()); // Set of source_url
-  const [discordSel, setDiscordSel]       = useState(new Set()); // Set of server name
+  // Discord state
+  const [discordServers, setDiscordServers]   = useState([]);
+  const [discordLoading, setDiscordLoading]   = useState(false);
+  const [discordError, setDiscordError]       = useState(null);
+  const [discordFilter, setDiscordFilter]     = useState("popular");
+
+  // Selection + pipeline
+  const [redditSel, setRedditSel]       = useState(new Set());
+  const [discordSel, setDiscordSel]     = useState(new Set());
   const [connectedUrls, setConnectedUrls] = useState(new Set());
-  const [confirming, setConfirming]       = useState(false);
+  const [confirming, setConfirming]     = useState(false);
 
   const redditRef  = useRef(null);
   const discordRef = useRef(null);
 
-  // Trigger mount animations
   useEffect(() => {
     const t = setTimeout(() => setMounted(true), 50);
     return () => clearTimeout(t);
@@ -216,21 +243,26 @@ export default function OnlinePage() {
 
   async function handleSubmit() {
     const svcs = [...selected];
-    setDiscordServers(getDiscordServers(svcs));
     setStep("results");
     setRedditLoading(true);
     setRedditError(null);
-    try {
-      const posts = await leadsService.redditSearch(svcs);
-      setRedditPosts(posts);
-    } catch {
-      setRedditError("Could not load Reddit posts. Check your Reddit API keys or try again.");
-    } finally {
-      setRedditLoading(false);
-    }
+    setDiscordLoading(true);
+    setDiscordError(null);
+    setRedditPosts([]);
+    setDiscordServers([]);
+
+    // Both searches run in parallel
+    leadsService.redditSearch(svcs)
+      .then((posts) => setRedditPosts(posts))
+      .catch(() => setRedditError("Could not load Reddit posts. Check Reddit API keys or try again."))
+      .finally(() => setRedditLoading(false));
+
+    leadsService.discordSearch(svcs)
+      .then((servers) => setDiscordServers(servers))
+      .catch(() => setDiscordError("Could not load Discord servers. Try again in a moment."))
+      .finally(() => setDiscordLoading(false));
   }
 
-  // Immediately connect a single Reddit post
   async function handleConnect(post) {
     if (connectedUrls.has(post.source_url)) return;
     try {
@@ -246,7 +278,6 @@ export default function OnlinePage() {
     }
   }
 
-  // Bulk confirm all selected
   async function handleConfirm() {
     const total = redditSel.size + discordSel.size;
     if (total === 0) return;
@@ -275,6 +306,9 @@ export default function OnlinePage() {
     }
   }
 
+  // Derived sorted lists
+  const sortedPosts   = sortPosts(redditPosts, redditFilter);
+  const sortedServers = sortServers(discordServers, discordFilter);
   const totalSelected = redditSel.size + discordSel.size;
   const totalCards    = redditPosts.length + discordServers.length;
 
@@ -282,7 +316,6 @@ export default function OnlinePage() {
   if (step === "select") {
     return (
       <div className="min-h-[calc(100vh-56px)] flex flex-col items-center justify-center px-4 py-16 bg-gray-50">
-        {/* Heading */}
         <div
           className="text-center mb-10 transition-all duration-700"
           style={{ opacity: mounted ? 1 : 0, transform: mounted ? "translateY(0)" : "translateY(24px)" }}
@@ -293,7 +326,6 @@ export default function OnlinePage() {
           <p className="mt-3 text-gray-500 text-base">Select all that apply</p>
         </div>
 
-        {/* Chips */}
         <div className="flex flex-wrap justify-center gap-3 max-w-2xl">
           {SERVICES.map((svc, i) => (
             <button
@@ -315,12 +347,11 @@ export default function OnlinePage() {
           ))}
         </div>
 
-        {/* Submit */}
         <div
           className="mt-10 transition-all duration-500"
           style={{
-            opacity:   selected.size > 0 ? 1 : 0,
-            transform: selected.size > 0 ? "translateY(0)" : "translateY(12px)",
+            opacity:       selected.size > 0 ? 1 : 0,
+            transform:     selected.size > 0 ? "translateY(0)" : "translateY(12px)",
             pointerEvents: selected.size > 0 ? "auto" : "none",
           }}
         >
@@ -357,7 +388,7 @@ export default function OnlinePage() {
       </div>
 
       {/* Two-panel body */}
-      <div className="flex flex-1 min-h-0 flex-col md:flex-row gap-0 overflow-hidden">
+      <div className="flex flex-1 min-h-0 flex-col md:flex-row overflow-hidden">
 
         {/* ── Reddit panel ── */}
         <div className="flex-1 flex flex-col min-h-0 border-b md:border-b-0 md:border-r border-gray-200">
@@ -367,26 +398,26 @@ export default function OnlinePage() {
             </svg>
             <span className="text-sm font-semibold text-gray-800">Reddit</span>
             {!redditLoading && redditPosts.length > 0 && (
-              <span className="ml-auto text-xs text-gray-400">{redditPosts.length} posts</span>
+              <span className="text-xs text-gray-400">{redditPosts.length} posts</span>
+            )}
+            {!redditLoading && redditPosts.length > 0 && (
+              <FilterSelect value={redditFilter} onChange={setRedditFilter} />
             )}
           </div>
 
           <div ref={redditRef} className="flex-1 overflow-y-auto p-4 space-y-3">
             {redditLoading ? (
-              <div className="flex flex-col items-center justify-center h-full gap-3 text-gray-400">
-                <div className="h-7 w-7 animate-spin rounded-full border-[3px] border-orange-400 border-t-transparent" />
-                <span className="text-sm">Searching Reddit…</span>
-              </div>
+              <PanelSpinner color="border-orange-400" label="Searching Reddit…" />
             ) : redditError ? (
               <div className="flex items-center justify-center h-full">
                 <p className="text-sm text-center text-gray-500 max-w-xs">{redditError}</p>
               </div>
-            ) : redditPosts.length === 0 ? (
+            ) : sortedPosts.length === 0 ? (
               <div className="flex items-center justify-center h-full">
                 <p className="text-sm text-gray-400">No posts found for these services.</p>
               </div>
             ) : (
-              redditPosts.map((post) => (
+              sortedPosts.map((post) => (
                 <RedditCard
                   key={post.source_url}
                   post={post}
@@ -411,16 +442,27 @@ export default function OnlinePage() {
               <path d="M20.317 4.37a19.791 19.791 0 00-4.885-1.515.074.074 0 00-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 00-5.487 0 12.64 12.64 0 00-.617-1.25.077.077 0 00-.079-.037A19.736 19.736 0 003.677 4.37a.07.07 0 00-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 00.031.057 19.9 19.9 0 005.993 3.03.078.078 0 00.084-.028 14.09 14.09 0 001.226-1.994.076.076 0 00-.041-.106 13.107 13.107 0 01-1.872-.892.077.077 0 01-.008-.128 10.2 10.2 0 00.372-.292.074.074 0 01.077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 01.078.01c.12.098.246.198.373.292a.077.077 0 01-.006.127 12.299 12.299 0 01-1.873.892.077.077 0 00-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 00.084.028 19.839 19.839 0 006.002-3.03.077.077 0 00.032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 00-.031-.03z"/>
             </svg>
             <span className="text-sm font-semibold text-gray-800">Discord</span>
-            <span className="ml-auto text-xs text-gray-400">{discordServers.length} servers</span>
+            {!discordLoading && discordServers.length > 0 && (
+              <span className="text-xs text-gray-400">{discordServers.length} servers</span>
+            )}
+            {!discordLoading && discordServers.length > 0 && (
+              <FilterSelect value={discordFilter} onChange={setDiscordFilter} />
+            )}
           </div>
 
           <div ref={discordRef} className="flex-1 overflow-y-auto p-4 space-y-3">
-            {discordServers.length === 0 ? (
+            {discordLoading ? (
+              <PanelSpinner color="border-indigo-400" label="Searching Discord servers…" />
+            ) : discordError ? (
               <div className="flex items-center justify-center h-full">
-                <p className="text-sm text-gray-400">No Discord servers for these services.</p>
+                <p className="text-sm text-center text-gray-500 max-w-xs">{discordError}</p>
+              </div>
+            ) : sortedServers.length === 0 ? (
+              <div className="flex items-center justify-center h-full">
+                <p className="text-sm text-gray-400">No Discord servers found for these services.</p>
               </div>
             ) : (
-              discordServers.map((server) => (
+              sortedServers.map((server) => (
                 <DiscordCard
                   key={server.name}
                   server={server}

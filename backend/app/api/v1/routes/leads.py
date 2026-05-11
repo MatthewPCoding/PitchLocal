@@ -91,6 +91,51 @@ async def reddit_search(
     return posts[:60]
 
 
+@router.get("/discord-search")
+async def discord_search(
+    services: str = Query(..., description="Comma-separated service names"),
+    current_user: User = Depends(get_current_user),
+):
+    """Search Disboard.org for Discord servers matching the selected services."""
+    from app.services.discord_service import search_discord_servers
+
+    service_list = [s.strip() for s in services.split(",") if s.strip()]
+
+    keywords: list[str] = []
+    seen_kws: set[str] = set()
+    for svc in service_list:
+        for kw in _SERVICE_KEYWORDS.get(svc, []):
+            if kw not in seen_kws:
+                seen_kws.add(kw)
+                keywords.append(kw)
+
+    if not keywords:
+        return []
+
+    # Use up to 5 distinct keywords searched concurrently
+    search_terms = keywords[:5]
+
+    async def _search(kw: str) -> list[dict]:
+        try:
+            return await search_discord_servers(kw, limit=8)
+        except Exception:
+            return []
+
+    results_nested = await asyncio.gather(*[_search(kw) for kw in search_terms])
+
+    seen_names: set[str] = set()
+    servers: list[dict] = []
+    for batch in results_nested:
+        for srv in batch:
+            name = srv.get("name", "")
+            if name and name not in seen_names:
+                seen_names.add(name)
+                servers.append(srv)
+
+    servers.sort(key=lambda s: s.get("members", 0), reverse=True)
+    return servers[:30]
+
+
 @router.post("/bulk", status_code=201)
 async def bulk_create_leads(
     body: list[LeadCreate],
