@@ -1,10 +1,12 @@
 import api from "./api";
 
 export const leadsService = {
-  list:   (status) => api.get("/leads/", { params: status ? { status } : {} }).then((r) => r.data.results ?? r.data),
-  create: (body)   => api.post("/leads/", body).then((r) => r.data),
-  update: (id, body) => api.patch(`/leads/${id}`, body).then((r) => r.data),
-  remove: (id)     => api.delete(`/leads/${id}`),
+  list:        (status) => api.get("/leads/", { params: status ? { status } : {} }).then((r) => r.data.results ?? r.data),
+  create:      (body)   => api.post("/leads/", body).then((r) => r.data),
+  update:      (id, b)  => api.patch(`/leads/${id}`, b).then((r) => r.data),
+  remove:      (id)     => api.delete(`/leads/${id}`),
+  redditSearch:(svcs)   => api.get("/leads/reddit-search", { params: { services: svcs.join(",") } }).then((r) => r.data),
+  bulkCreate:  (leads)  => api.post("/leads/bulk", leads).then((r) => r.data),
 };
 
 export const projectsService = {

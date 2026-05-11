@@ -8,7 +8,7 @@ import toast from "react-hot-toast";
 const NAV_LINKS = [
   { to: "/dashboard", label: "Dashboard" },
   { to: "/search",    label: "Search"    },
-  { to: "/leads",     label: "Leads"     },
+  { to: "/online",    label: "Online"    },
   { to: "/pipeline",  label: "Pipeline"  },
   { to: "/profile",   label: "Profile"   },
 ];

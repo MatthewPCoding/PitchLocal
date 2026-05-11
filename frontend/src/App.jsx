@@ -7,6 +7,7 @@ import Auth from "./pages/Auth";
 import DashboardPage from "./pages/DashboardPage";
 import SearchPage from "./pages/SearchPage";
 import LeadsPage from "./pages/LeadsPage";
+import OnlinePage from "./pages/OnlinePage";
 import PipelinePage from "./pages/PipelinePage";
 import ProfilePage from "./pages/ProfilePage";
 
@@ -61,6 +62,14 @@ export default function App() {
           element={
             <ProtectedRoute>
               <AppShell><LeadsPage /></AppShell>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/online"
+          element={
+            <ProtectedRoute>
+              <AppShell><OnlinePage /></AppShell>
             </ProtectedRoute>
           }
         />

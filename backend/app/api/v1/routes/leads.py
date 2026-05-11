@@ -1,3 +1,4 @@
+import asyncio
 from typing import Optional
 from uuid import UUID
 
@@ -5,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.dependencies import get_current_user
 from app.db.database import get_db
 from app.models.lead import Lead
@@ -14,6 +16,94 @@ from app.schemas.lead import LeadCreate, LeadListResponse, LeadResponse, LeadSta
 from app.schemas.pitch import OutreachLogCreate, OutreachLogResponse
 
 router = APIRouter()
+
+# ── Online Leads: service → subreddit / keyword maps ─────────────────────────
+
+_SERVICE_SUBREDDITS: dict[str, list[str]] = {
+    "Web Development":        ["forhire", "webdev", "learnprogramming"],
+    "Mobile App Development": ["forhire", "androiddev", "iOSProgramming"],
+    "Brand Design":           ["forhire", "graphic_design", "branding"],
+    "Social Media Management":["forhire", "socialmedia", "smallbusiness"],
+    "SEO / Digital Marketing":["forhire", "SEO", "smallbusiness"],
+    "Copywriting":            ["forhire", "copywriting"],
+    "Video Production":       ["forhire", "videography"],
+    "Photography":            ["forhire", "photography"],
+    "Bookkeeping":            ["forhire", "smallbusiness", "accounting"],
+    "Consulting":             ["forhire", "smallbusiness", "consulting"],
+}
+
+_SERVICE_KEYWORDS: dict[str, list[str]] = {
+    "Web Development":        ["website", "web developer", "web development", "frontend", "backend", "full stack"],
+    "Mobile App Development": ["mobile app", "app development", "iOS", "android", "flutter", "react native"],
+    "Brand Design":           ["logo", "brand design", "graphic design", "branding", "visual identity"],
+    "Social Media Management":["social media", "instagram", "content creator", "marketing", "content strategy"],
+    "SEO / Digital Marketing":["SEO", "search engine", "digital marketing", "google ranking", "paid ads"],
+    "Copywriting":            ["copywriter", "content writer", "blog writing", "copy", "email marketing"],
+    "Video Production":       ["video", "filming", "video editing", "videographer", "youtube"],
+    "Photography":            ["photographer", "photoshoot", "product photos", "headshots"],
+    "Bookkeeping":            ["bookkeeping", "accounting", "taxes", "QuickBooks", "finances"],
+    "Consulting":             ["consultant", "consulting", "business strategy", "business advice", "coaching"],
+}
+
+
+@router.get("/reddit-search")
+async def reddit_search(
+    services: str = Query(..., description="Comma-separated service names"),
+    current_user: User = Depends(get_current_user),
+):
+    """Search Reddit across relevant subreddits for each selected service."""
+    if not settings.REDDIT_CLIENT_ID or not settings.REDDIT_CLIENT_SECRET:
+        return []
+
+    from app.services.reddit_service import search_subreddit
+
+    service_list = [s.strip() for s in services.split(",") if s.strip()]
+
+    subreddits: set[str] = set()
+    keywords: set[str] = set()
+    for svc in service_list:
+        subreddits.update(_SERVICE_SUBREDDITS.get(svc, []))
+        keywords.update(_SERVICE_KEYWORDS.get(svc, []))
+
+    if not subreddits or not keywords:
+        return []
+
+    kw_list = list(keywords)
+
+    async def _search(sub: str) -> list[dict]:
+        try:
+            return await asyncio.to_thread(search_subreddit, sub, kw_list, 10)
+        except Exception:
+            return []
+
+    results_nested = await asyncio.gather(*[_search(s) for s in subreddits])
+
+    seen: set[str] = set()
+    posts: list[dict] = []
+    for batch in results_nested:
+        for post in batch:
+            url = post.get("source_url", "")
+            if url and url not in seen:
+                seen.add(url)
+                posts.append(post)
+
+    posts.sort(key=lambda p: p.get("score", 0), reverse=True)
+    return posts[:60]
+
+
+@router.post("/bulk", status_code=201)
+async def bulk_create_leads(
+    body: list[LeadCreate],
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Create multiple leads in a single transaction."""
+    if not body:
+        return {"created": 0}
+    leads = [Lead(user_id=current_user.id, **item.model_dump()) for item in body]
+    db.add_all(leads)
+    await db.flush()
+    return {"created": len(leads)}
 
 
 @router.get("/", response_model=LeadListResponse)
