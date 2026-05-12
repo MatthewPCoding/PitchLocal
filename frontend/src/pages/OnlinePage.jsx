@@ -10,6 +10,60 @@ const SERVICES = [
   "Video Production", "Photography", "Bookkeeping", "Consulting",
 ];
 
+// ── Discord invite codes per service (fetched directly from the browser) ──────
+// The browser isn't subject to the server-IP rate limits Discord enforces on
+// cloud hosting providers like Render.
+
+const DISCORD_CODES = {
+  "Web Development":         ["reactiflux", "scrimba-community", "devcord", "javascript", "python", "css"],
+  "Mobile App Development":  ["android", "dart", "reactiflux", "devcord"],
+  "Brand Design":            ["css", "devcord", "scrimba-community"],
+  "Social Media Management": ["creators"],
+  "SEO / Digital Marketing": ["creators", "devcord"],
+  "Copywriting":             ["creators"],
+  "Video Production":        ["creators"],
+  "Photography":             ["photography"],
+  "Bookkeeping":             ["python"],
+  "Consulting":              ["python", "creators"],
+};
+
+async function fetchDiscordServers(services) {
+  const seen = new Set();
+  const codes = [];
+  for (const svc of services) {
+    for (const code of DISCORD_CODES[svc] ?? []) {
+      if (!seen.has(code)) { seen.add(code); codes.push(code); }
+    }
+  }
+  if (!codes.length) return [];
+
+  const results = await Promise.allSettled(
+    codes.map((code) =>
+      fetch(`https://discord.com/api/v10/invites/${code}?with_counts=true`, {
+        headers: { Accept: "application/json" },
+      }).then((r) => r.ok ? r.json() : null)
+    )
+  );
+
+  const servers = [];
+  results.forEach((res, i) => {
+    if (res.status !== "fulfilled" || !res.value) return;
+    const d = res.value;
+    const guild = d.guild ?? {};
+    if (!guild.name) return;
+    servers.push({
+      name:    guild.name,
+      desc:    guild.description ?? "",
+      members: d.approximate_member_count ?? 0,
+      online:  d.approximate_presence_count ?? 0,
+      invite:  `https://discord.gg/${codes[i]}`,
+      tags:    [],
+    });
+  });
+
+  return servers.sort((a, b) => b.members - a.members);
+}
+
 const FILTER_OPTIONS = [
   { value: "popular",    label: "Most Popular" },
   { value: "recent",     label: "Recent"       },
@@ -33,10 +87,9 @@ function sortPosts(posts, filter) {
 function sortServers(servers, filter) {
   const arr = [...servers];
   // When member counts aren't available, fall back to Reddit post score
-  const popularity = (s) => s.members > 0 ? s.members : (s.score ?? 0);
   switch (filter) {
-    case "recent":     return arr.sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
-    case "popular":    return arr.sort((a, b) => popularity(b) - popularity(a));
+    case "recent":     return arr.sort((a, b) => (b.online ?? 0) - (a.online ?? 0));
+    case "popular":    return arr.sort((a, b) => (b.members ?? 0) - (a.members ?? 0));
     case "ascending":  return arr.sort((a, b) => (a.name ?? "").localeCompare(b.name ?? ""));
     case "descending": return arr.sort((a, b) => (b.name ?? "").localeCompare(a.name ?? ""));
     default:           return arr;
@@ -163,19 +216,15 @@ function DiscordCard({ server, selected, onToggle }) {
             {tag && (
               <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-600">{tag}</span>
             )}
-            {server.members > 0 ? (
-              <>
-                <span className="text-xs text-gray-400">{fmtMembers(server.members)} members</span>
-                {server.online > 0 && (
-                  <span className="flex items-center gap-1 text-xs text-green-600">
-                    <span className="h-1.5 w-1.5 rounded-full bg-green-500 inline-block" />
-                    {fmtMembers(server.online)} online
-                  </span>
-                )}
-              </>
-            ) : server.score > 0 ? (
-              <span className="text-xs text-gray-400">▲ {fmtScore(server.score)} community score</span>
-            ) : null}
+            {server.members > 0 && (
+              <span className="text-xs text-gray-400">{fmtMembers(server.members)} members</span>
+            )}
+            {server.online > 0 && (
+              <span className="flex items-center gap-1 text-xs text-green-600">
+                <span className="h-1.5 w-1.5 rounded-full bg-green-500 inline-block" />
+                {fmtMembers(server.online)} online
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -263,7 +312,7 @@ export default function OnlinePage() {
       .catch(() => setRedditError("Could not load Reddit posts. Check Reddit API keys or try again."))
       .finally(() => setRedditLoading(false));
 
-    leadsService.discordSearch(svcs)
+    fetchDiscordServers(svcs)
       .then((servers) => setDiscordServers(servers))
       .catch(() => setDiscordError("Could not load Discord servers. Try again in a moment."))
       .finally(() => setDiscordLoading(false));
