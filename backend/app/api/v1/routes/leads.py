@@ -133,29 +133,59 @@ async def discord_search(
     return await search_discord_servers(service_list, limit=20)
 
 
+# Curated subreddit info — avoids concurrent about.json calls that trigger Render IP rate limits.
+# Subscriber counts verified 2026-05-12.
+_COMMUNITY_REGISTRY: dict[str, tuple[int, str]] = {
+    "entrepreneur":       (5174198,  "Our community brings together individuals driven by a shared commitment to problem-solving, professional networking, and collaboration."),
+    "smallbusiness":      (2461246,  "Questions and answers about starting, owning, and growing a small business only."),
+    "ecommerce":          (639491,   "A community dedicated to the design and implementation of eCommerce sites, for seasoned retailers and newcomers alike."),
+    "Etsy":               (305809,   "The unofficial community for all things Etsy, buyers and sellers both welcome."),
+    "shopify":            (352324,   "A forum to ask or seek any information regarding Shopify — development, operations, and strategy."),
+    "startups":           (2054709,  "The place to discuss startup problems and solutions. Startups are companies designed to grow and scale."),
+    "dropshipping":       (256879,   "Discuss dropshipping here — tips, strategies, questions, and real-world experiences."),
+    "SideProject":        (712570,   "Share and receive constructive feedback on side projects — apps, services, and experiments."),
+    "streetwear":         (5113792,  "A community of fashion enthusiasts expressing individuality through streetwear, sneakers, and contemporary fashion."),
+    "FashionDesigner":    (27592,    "For working fashion designers and fashion design students to share work and discuss the industry."),
+    "InstagramMarketing": (348046,   "All things Instagram — growth strategies, content, and marketing best practices."),
+    "marketing":          (1936017,  "For marketing communications and advertising professionals to discuss strategy, media, and campaigns."),
+    "socialmedia":        (2103039,  "A sub for professional discussion about social media news, trends, and best practices."),
+    "content_marketing":  (186785,   "A community of content marketers helping each other improve through feedback, advice, and resources."),
+    "NewTubers":          (677342,   "The premiere small content creator community for YouTube creators and Twitch streamers looking to grow."),
+    "youtube":            (3397040,  "Discussion about YouTube — creators, trends, platform changes, and strategy."),
+    "videography":        (439898,   "A community for both amateurs and professionals working in video, cinema, and television production."),
+    "weddingplanning":    (1565500,  "Discuss your personal wedding planning — venues, vendors, budgets, and real experiences."),
+    "realestate":         (2485313,  "Real estate investing, landlords, mortgages, foreclosures, loans, and property management."),
+    "selfemployed":       (15736,    "For the self-employed and those thinking of going independent — advice, tools, and community."),
+    "business":           (2563386,  "From tips for running a business to pitfalls to avoid — bringing you the best of business news and discussion."),
+}
+
+
 @router.get("/community-search")
 async def community_search(
     services: str = Query(..., description="Comma-separated service names"),
     current_user: User = Depends(get_current_user),
 ):
-    """Return client-focused subreddits (businesses, entrepreneurs) for the selected service types."""
-    from app.services.reddit_service import fetch_subreddit_info
-
+    """Return client-focused subreddits for the selected service types (curated registry, no live API calls)."""
     service_list = [s.strip() for s in services.split(",") if s.strip()]
 
     seen: set[str] = set()
-    subs: list[str] = []
+    results: list[dict] = []
     for svc in service_list:
         for sub in _SERVICE_CLIENT_SUBS.get(svc, []):
-            if sub not in seen:
-                seen.add(sub)
-                subs.append(sub)
+            if sub in seen:
+                continue
+            seen.add(sub)
+            subscribers, description = _COMMUNITY_REGISTRY.get(sub, (0, ""))
+            results.append({
+                "subreddit":   sub,
+                "title":       f"r/{sub}",
+                "description": description,
+                "subscribers": subscribers,
+                "url":         f"https://reddit.com/r/{sub}",
+            })
 
-    if not subs:
-        return []
-
-    results = await asyncio.gather(*[fetch_subreddit_info(s) for s in subs])
-    return [r for r in results if r is not None]
+    results.sort(key=lambda r: r["subscribers"], reverse=True)
+    return results
 
 
 @router.post("/bulk", status_code=201)
