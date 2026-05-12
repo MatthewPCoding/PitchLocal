@@ -50,38 +50,24 @@ async def reddit_search(
     services: str = Query(..., description="Comma-separated service names"),
     current_user: User = Depends(get_current_user),
 ):
-    """Search Reddit across relevant subreddits using the public JSON API."""
+    """Search r/forhire using the public Reddit JSON API (no credentials needed).
+    Single request avoids the concurrent rate-limiting that blocks multi-sub searches."""
     from app.services.reddit_service import async_search_subreddit
 
     service_list = [s.strip() for s in services.split(",") if s.strip()]
 
-    subreddits: set[str] = set()
     keywords: set[str] = set()
     for svc in service_list:
-        subreddits.update(_SERVICE_SUBREDDITS.get(svc, []))
         keywords.update(_SERVICE_KEYWORDS.get(svc, []))
 
-    if not subreddits or not keywords:
+    if not keywords:
         return []
 
-    kw_list = list(keywords)
-
-    async def _search(sub: str) -> list[dict]:
-        try:
-            return await async_search_subreddit(sub, kw_list, 10)
-        except Exception:
-            return []
-
-    results_nested = await asyncio.gather(*[_search(s) for s in subreddits])
-
-    seen: set[str] = set()
-    posts: list[dict] = []
-    for batch in results_nested:
-        for post in batch:
-            url = post.get("source_url", "")
-            if url and url not in seen:
-                seen.add(url)
-                posts.append(post)
+    # r/forhire covers all service types — single request prevents rate limiting
+    try:
+        posts = await async_search_subreddit("forhire", list(keywords), limit=60)
+    except Exception:
+        posts = []
 
     posts.sort(key=lambda p: p.get("score", 0), reverse=True)
     return posts[:60]
@@ -109,16 +95,20 @@ async def connectivity_check():
         out["reddit"] = {"error": type(exc).__name__, "detail": str(exc)}
 
     try:
-        async with httpx.AsyncClient(timeout=15, follow_redirects=True) as c:
+        async with httpx.AsyncClient(timeout=10, follow_redirects=True) as c:
             r = await c.get(
-                "https://discord.com/api/v10/discovery/search",
-                params={"query": "web development", "limit": 3},
+                "https://discord.com/api/v10/invites/reactiflux",
+                params={"with_counts": "true"},
                 headers={"User-Agent": "Mozilla/5.0 Chrome/124", "Accept": "application/json"},
             )
-        hits = r.json().get("hits", [])
-        out["discord"] = {"http_status": r.status_code, "servers_returned": len(hits)}
+        d = r.json()
+        out["discord_invite_api"] = {
+            "http_status": r.status_code,
+            "name": d.get("guild", {}).get("name"),
+            "members": d.get("approximate_member_count"),
+        }
     except Exception as exc:
-        out["discord"] = {"error": type(exc).__name__, "detail": str(exc)}
+        out["discord_invite_api"] = {"error": type(exc).__name__, "detail": str(exc)}
 
     return out
 
@@ -128,44 +118,15 @@ async def discord_search(
     services: str = Query(..., description="Comma-separated service names"),
     current_user: User = Depends(get_current_user),
 ):
-    """Search Disboard.org for Discord servers matching the selected services."""
+    """Resolve live Discord server stats for the selected service categories
+    using the public invite API — no rate-limit issues."""
     from app.services.discord_service import search_discord_servers
 
     service_list = [s.strip() for s in services.split(",") if s.strip()]
-
-    keywords: list[str] = []
-    seen_kws: set[str] = set()
-    for svc in service_list:
-        for kw in _SERVICE_KEYWORDS.get(svc, []):
-            if kw not in seen_kws:
-                seen_kws.add(kw)
-                keywords.append(kw)
-
-    if not keywords:
+    if not service_list:
         return []
 
-    # Use up to 5 distinct keywords searched concurrently
-    search_terms = keywords[:5]
-
-    async def _search(kw: str) -> list[dict]:
-        try:
-            return await search_discord_servers(kw, limit=8)
-        except Exception:
-            return []
-
-    results_nested = await asyncio.gather(*[_search(kw) for kw in search_terms])
-
-    seen_names: set[str] = set()
-    servers: list[dict] = []
-    for batch in results_nested:
-        for srv in batch:
-            name = srv.get("name", "")
-            if name and name not in seen_names:
-                seen_names.add(name)
-                servers.append(srv)
-
-    servers.sort(key=lambda s: s.get("members", 0), reverse=True)
-    return servers[:30]
+    return await search_discord_servers(service_list, limit=20)
 
 
 @router.post("/bulk", status_code=201)

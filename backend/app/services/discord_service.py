@@ -1,210 +1,153 @@
+"""
+Discord server discovery via the public invite API.
+
+Instead of the discovery-search endpoint (which rate-limits Render's shared IPs),
+we resolve well-known invite codes using /invites/{code}?with_counts=true.
+That endpoint is public, unauthenticated, and not subject to the same rate limits.
+Invalid or expired codes are silently skipped.
+"""
+import asyncio
 import logging
-import re
-from html.parser import HTMLParser
 
 import httpx
 
 log = logging.getLogger(__name__)
 
-# ── Discord public discovery API ──────────────────────────────────────────────
-# Discord exposes a public, unauthenticated discovery search used by their
-# own Discover page. Returns JSON — no API key or bot token required.
-
-_DISCORD_HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/124.0.0.0 Safari/537.36"
-    ),
+_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
     "Accept": "application/json",
-    "Accept-Language": "en-US,en;q=0.9",
-    "Origin": "https://discord.com",
-    "Referer": "https://discord.com/servers",
+}
+
+# ── Curated invite codes per service ─────────────────────────────────────────
+# Invite codes (the part after discord.gg/) for popular communities.
+# Invalid or expired codes are handled gracefully — they're just skipped.
+
+_SERVICE_INVITES: dict[str, list[str]] = {
+    "Web Development": [
+        "reactiflux",       # Reactiflux — React & JS
+        "web",              # web dev & web design
+        "scrimba-community",# Scrimba coding community
+        "javascript",       # JavaScript
+        "typescript",       # TypeScript
+        "devcord",          # Devcord — general dev
+        "python",           # Python
+        "webdev",           # Web dev community
+        "coding",           # General coding
+    ],
+    "Mobile App Development": [
+        "reactiflux",       # React Native section
+        "flutter",          # Flutter
+        "android-dev",      # Android development
+        "swift-lang",       # Swift / iOS
+        "kotlin",           # Kotlin
+        "expo-community",   # Expo / React Native
+    ],
+    "Brand Design": [
+        "figma",            # Figma community
+        "design-community", # Design community
+        "creativehive",     # Creative professionals
+        "ux-design",        # UX/UI Design
+        "graphic-design",   # Graphic design
+        "typography",       # Typography
+    ],
+    "Social Media Management": [
+        "entrepreneur",     # Entrepreneurs
+        "content-creators", # Content creators
+        "marketing",        # Marketing
+        "smallbusiness",    # Small business
+        "tiktokgrowth",     # TikTok growth
+    ],
+    "SEO / Digital Marketing": [
+        "seo-signals",      # SEO Signals Lab
+        "digitalmarketing", # Digital marketing
+        "entrepreneur",     # Entrepreneurs
+        "affiliate",        # Affiliate marketing
+        "growthhacking",    # Growth hacking
+    ],
+    "Copywriting": [
+        "writing",          # Writing community
+        "freelancewriting", # Freelance writers
+        "copywriters",      # Copywriters
+        "contentmarketing", # Content marketing
+        "blogging",         # Blogging
+    ],
+    "Video Production": [
+        "videographers",    # Videographers
+        "youtube",          # YouTube creators
+        "filmmakers",       # Filmmakers
+        "videoediting",     # Video editing
+        "podcasters",       # Podcasters
+    ],
+    "Photography": [
+        "photography",      # Photography hub
+        "photographers",    # Photographers
+        "photoshop",        # Photoshop
+        "lightroom",        # Lightroom
+        "streetphotography",# Street photography
+    ],
+    "Bookkeeping": [
+        "personalfinance",  # Personal finance
+        "entrepreneur",     # Entrepreneurs
+        "smallbusiness",    # Small business
+        "accounting",       # Accounting
+    ],
+    "Consulting": [
+        "entrepreneur",     # Entrepreneurs
+        "microconf",        # MicroConf — indie business
+        "smallbusiness",    # Small business
+        "freelancers",      # Freelancers
+        "consulting",       # Consulting
+    ],
 }
 
 
-async def _discord_discovery(keyword: str, limit: int) -> list[dict]:
-    """Query Discord's own public server discovery endpoint."""
+async def _resolve_invite(client: httpx.AsyncClient, code: str) -> dict | None:
+    """Fetch live stats for a single Discord invite code. Returns None on any failure."""
     try:
-        async with httpx.AsyncClient(headers=_DISCORD_HEADERS, timeout=15) as client:
-            resp = await client.get(
-                "https://discord.com/api/v10/discovery/search",
-                params={"query": keyword, "limit": min(limit, 24), "offset": 0},
-            )
-        if resp.status_code != 200:
-            log.warning("Discord discovery returned HTTP %s", resp.status_code)
-            return []
-        guilds = resp.json().get("hits", [])
+        r = await client.get(
+            f"https://discord.com/api/v10/invites/{code}",
+            params={"with_counts": "true"},
+        )
+        if r.status_code != 200:
+            return None
+        d = r.json()
+        guild = d.get("guild") or {}
+        name = guild.get("name") or d.get("approximate_member_count") and "Unknown"
+        if not name:
+            return None
+        return {
+            "name":    name,
+            "desc":    guild.get("description") or "",
+            "members": d.get("approximate_member_count", 0),
+            "online":  d.get("approximate_presence_count", 0),
+            "invite":  f"https://discord.gg/{code}",
+            "tags":    [],
+        }
     except Exception as exc:
-        log.exception("Discord discovery request failed: %s", exc)
+        log.debug("Invite resolve failed for %s: %s", code, exc)
+        return None
+
+
+async def search_discord_servers(services: list[str], limit: int = 20) -> list[dict]:
+    """
+    Return live Discord server info for the given service categories.
+    Resolves invite codes concurrently via the public invite API.
+    """
+    # Collect unique invite codes across all requested services
+    seen_codes: set[str] = set()
+    codes: list[str] = []
+    for svc in services:
+        for code in _SERVICE_INVITES.get(svc, []):
+            if code not in seen_codes:
+                seen_codes.add(code)
+                codes.append(code)
+
+    if not codes:
         return []
 
-    results = []
-    for g in guilds:
-        vanity = g.get("vanity_url_code") or ""
-        invite = f"https://discord.gg/{vanity}" if vanity else ""
-        tags = [c.get("name", "") for c in (g.get("categories") or [])[:3]]
-        results.append({
-            "name":    g.get("name", ""),
-            "desc":    g.get("description") or "",
-            "members": g.get("approximate_member_count", 0),
-            "online":  g.get("approximate_presence_count", 0),
-            "invite":  invite,
-            "tags":    tags,
-        })
-    return results
+    async with httpx.AsyncClient(headers=_HEADERS, timeout=10, follow_redirects=True) as client:
+        results = await asyncio.gather(*[_resolve_invite(client, c) for c in codes])
 
-
-# ── Disboard scraper (fallback if Discord discovery returns nothing) ───────────
-
-_DISBOARD_HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/124.0.0.0 Safari/537.36"
-    ),
-    "Accept": "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8",
-    "Accept-Language": "en-US,en;q=0.9",
-}
-
-_VOID = frozenset({
-    "area", "base", "br", "col", "embed", "hr", "img", "input",
-    "link", "meta", "param", "source", "track", "wbr",
-})
-
-
-class _CardParser(HTMLParser):
-    def __init__(self):
-        super().__init__(convert_charrefs=True)
-        self.servers: list[dict] = []
-        self._depth = 0
-        self._card: dict | None = None
-        self._card_depth: int | None = None
-        self._capture: str | None = None
-
-    def handle_starttag(self, tag, attrs):
-        if tag not in _VOID:
-            self._depth += 1
-        ad = dict(attrs)
-        cls = ad.get("class") or ""
-        href = ad.get("href") or ""
-
-        if self._card is None:
-            if "listing-card" in cls:
-                self._card = {}
-                self._card_depth = self._depth
-            return
-
-        if "server-name" in cls:
-            self._capture = "name"
-        elif "server-description" in cls or "short-description" in cls:
-            self._capture = "desc"
-        elif re.search(r"\bonline\b", cls, re.I):
-            self._capture = "online"
-        elif re.search(r"\bmember", cls, re.I):
-            self._capture = "members"
-        elif "tag" in cls and tag == "a":
-            self._capture = "tag"
-
-        if tag == "a" and "/server/join/" in href:
-            self._card["invite"] = "https://disboard.org" + href
-
-    def handle_endtag(self, tag):
-        self._capture = None
-        if tag not in _VOID:
-            self._depth -= 1
-        if (
-            self._card is not None
-            and self._card_depth is not None
-            and self._depth < self._card_depth
-        ):
-            if self._card.get("invite") or self._card.get("name"):
-                self.servers.append(self._card)
-            self._card = None
-            self._card_depth = None
-
-    def handle_data(self, data):
-        data = data.strip()
-        if not data or not self._capture or self._card is None:
-            return
-        cap = self._capture
-        if cap == "name" and not self._card.get("name"):
-            self._card["name"] = data
-        elif cap == "desc" and not self._card.get("desc"):
-            self._card["desc"] = data
-        elif cap == "online":
-            m = re.search(r"[\d,]+", data)
-            if m:
-                self._card.setdefault("online", int(m.group().replace(",", "")))
-        elif cap == "members":
-            m = re.search(r"[\d,]+", data)
-            if m:
-                self._card.setdefault("members", int(m.group().replace(",", "")))
-        elif cap == "tag":
-            self._card.setdefault("tags", []).append(data)
-
-
-def _regex_fallback(html: str, limit: int) -> list[dict]:
-    servers: list[dict] = []
-    invites = re.findall(r'href="(/server/join/(\d+))"', html)
-    names   = re.findall(r'class="[^"]*server-name[^"]*"[^>]*>([^<]+)', html)
-    descs   = re.findall(r'class="[^"]*(?:server-description|short-description)[^"]*"[^>]*>([^<]+)', html)
-    members = re.findall(r'([\d,]+)\s*(?:<[^>]+>)?\s*Member', html)
-    tags    = re.findall(r'href="/tag/[^"]*">([^<]+)</a>', html)
-    seen: set[str] = set()
-    for path, gid in invites[:limit]:
-        if gid in seen:
-            continue
-        seen.add(gid)
-        j = len(servers)
-        servers.append({
-            "name":    names[j].strip()  if j < len(names)   else f"Server {gid}",
-            "desc":    descs[j].strip()  if j < len(descs)   else "",
-            "members": int(members[j].replace(",", "")) if j < len(members) else 0,
-            "online":  0,
-            "invite":  f"https://disboard.org{path}",
-            "tags":    tags[j * 3 : j * 3 + 3],
-        })
-    return servers
-
-
-async def _disboard(keyword: str, limit: int) -> list[dict]:
-    try:
-        async with httpx.AsyncClient(
-            headers=_DISBOARD_HEADERS, timeout=20, follow_redirects=True
-        ) as client:
-            resp = await client.get(
-                "https://disboard.org/servers",
-                params={"keyword": keyword, "sort": "member_count"},
-            )
-        if resp.status_code != 200:
-            return []
-        html = resp.text
-    except Exception:
-        return []
-
-    parser = _CardParser()
-    try:
-        parser.feed(html)
-    except Exception:
-        pass
-    results = parser.servers[:limit] if parser.servers else _regex_fallback(html, limit)
-    for s in results:
-        s.setdefault("name", "Unknown")
-        s.setdefault("desc", "")
-        s.setdefault("members", 0)
-        s.setdefault("online", 0)
-        s.setdefault("invite", "")
-        s.setdefault("tags", [])
-    return results
-
-
-# ── Public entry point ────────────────────────────────────────────────────────
-
-async def search_discord_servers(keyword: str, limit: int = 10) -> list[dict]:
-    """Return Discord servers matching `keyword`. Tries Discord's discovery API
-    first (public, no credentials), then Disboard as a scraping fallback."""
-    results = await _discord_discovery(keyword, limit)
-    if not results:
-        results = await _disboard(keyword, limit)
-    return results
+    servers = [r for r in results if r is not None]
+    servers.sort(key=lambda s: s.get("members", 0), reverse=True)
+    return servers[:limit]
