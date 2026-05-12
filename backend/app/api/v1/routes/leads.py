@@ -95,20 +95,19 @@ async def connectivity_check():
         out["reddit"] = {"error": type(exc).__name__, "detail": str(exc)}
 
     try:
-        async with httpx.AsyncClient(timeout=10, follow_redirects=True) as c:
+        async with httpx.AsyncClient(timeout=15, follow_redirects=True) as c:
             r = await c.get(
-                "https://discord.com/api/v10/invites/reactiflux",
-                params={"with_counts": "true"},
-                headers={"User-Agent": "Mozilla/5.0 Chrome/124", "Accept": "application/json"},
+                "https://www.reddit.com/r/discordservers/search.json",
+                params={"q": "web developer", "sort": "new", "limit": 3, "restrict_sr": "on", "raw_json": "1"},
+                headers={"User-Agent": "Mozilla/5.0 (compatible; PitchLocal/1.0)"},
             )
-        d = r.json()
-        out["discord_invite_api"] = {
-            "http_status": r.status_code,
-            "name": d.get("guild", {}).get("name"),
-            "members": d.get("approximate_member_count"),
-        }
+        body = r.json()
+        if isinstance(body, list):
+            body = body[0]
+        kids = body.get("data", {}).get("children", [])
+        out["discord_via_reddit"] = {"http_status": r.status_code, "posts_returned": len(kids)}
     except Exception as exc:
-        out["discord_invite_api"] = {"error": type(exc).__name__, "detail": str(exc)}
+        out["discord_via_reddit"] = {"error": type(exc).__name__, "detail": str(exc)}
 
     return out
 
@@ -118,15 +117,24 @@ async def discord_search(
     services: str = Query(..., description="Comma-separated service names"),
     current_user: User = Depends(get_current_user),
 ):
-    """Resolve live Discord server stats for the selected service categories
-    using the public invite API — no rate-limit issues."""
+    """Search r/discordservers for Discord communities matching the selected services.
+    Uses Reddit's public JSON API (no credentials) to avoid Discord IP rate limits."""
     from app.services.discord_service import search_discord_servers
 
     service_list = [s.strip() for s in services.split(",") if s.strip()]
-    if not service_list:
+
+    keywords: list[str] = []
+    seen_kws: set[str] = set()
+    for svc in service_list:
+        for kw in _SERVICE_KEYWORDS.get(svc, []):
+            if kw not in seen_kws:
+                seen_kws.add(kw)
+                keywords.append(kw)
+
+    if not keywords:
         return []
 
-    return await search_discord_servers(service_list, limit=20)
+    return await search_discord_servers(keywords, limit=20)
 
 
 @router.post("/bulk", status_code=201)

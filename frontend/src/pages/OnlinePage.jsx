@@ -32,9 +32,11 @@ function sortPosts(posts, filter) {
 
 function sortServers(servers, filter) {
   const arr = [...servers];
+  // When member counts aren't available, fall back to Reddit post score
+  const popularity = (s) => s.members > 0 ? s.members : (s.score ?? 0);
   switch (filter) {
-    case "recent":     return arr.sort((a, b) => (b.online ?? 0) - (a.online ?? 0));
-    case "popular":    return arr.sort((a, b) => (b.members ?? 0) - (a.members ?? 0));
+    case "recent":     return arr.sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+    case "popular":    return arr.sort((a, b) => popularity(b) - popularity(a));
     case "ascending":  return arr.sort((a, b) => (a.name ?? "").localeCompare(b.name ?? ""));
     case "descending": return arr.sort((a, b) => (b.name ?? "").localeCompare(a.name ?? ""));
     default:           return arr;
@@ -161,15 +163,19 @@ function DiscordCard({ server, selected, onToggle }) {
             {tag && (
               <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-600">{tag}</span>
             )}
-            {server.members > 0 && (
-              <span className="text-xs text-gray-400">{fmtMembers(server.members)} members</span>
-            )}
-            {server.online > 0 && (
-              <span className="flex items-center gap-1 text-xs text-green-600">
-                <span className="h-1.5 w-1.5 rounded-full bg-green-500 inline-block" />
-                {fmtMembers(server.online)} online
-              </span>
-            )}
+            {server.members > 0 ? (
+              <>
+                <span className="text-xs text-gray-400">{fmtMembers(server.members)} members</span>
+                {server.online > 0 && (
+                  <span className="flex items-center gap-1 text-xs text-green-600">
+                    <span className="h-1.5 w-1.5 rounded-full bg-green-500 inline-block" />
+                    {fmtMembers(server.online)} online
+                  </span>
+                )}
+              </>
+            ) : server.score > 0 ? (
+              <span className="text-xs text-gray-400">▲ {fmtScore(server.score)} community score</span>
+            ) : null}
           </div>
         </div>
       </div>
