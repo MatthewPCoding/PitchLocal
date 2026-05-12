@@ -10,60 +10,6 @@ const SERVICES = [
   "Video Production", "Photography", "Bookkeeping", "Consulting",
 ];
 
-// ── Discord invite codes per service (fetched directly from the browser) ──────
-// The browser isn't subject to the server-IP rate limits Discord enforces on
-// cloud hosting providers like Render.
-
-const DISCORD_CODES = {
-  "Web Development":         ["reactiflux", "scrimba-community", "devcord", "javascript", "python", "css"],
-  "Mobile App Development":  ["android", "dart", "reactiflux", "devcord"],
-  "Brand Design":            ["css", "devcord", "scrimba-community"],
-  "Social Media Management": ["creators"],
-  "SEO / Digital Marketing": ["creators", "devcord"],
-  "Copywriting":             ["creators"],
-  "Video Production":        ["creators"],
-  "Photography":             ["photography"],
-  "Bookkeeping":             ["python"],
-  "Consulting":              ["python", "creators"],
-};
-
-async function fetchDiscordServers(services) {
-  const seen = new Set();
-  const codes = [];
-  for (const svc of services) {
-    for (const code of DISCORD_CODES[svc] ?? []) {
-      if (!seen.has(code)) { seen.add(code); codes.push(code); }
-    }
-  }
-  if (!codes.length) return [];
-
-  const results = await Promise.allSettled(
-    codes.map((code) =>
-      fetch(`https://discord.com/api/v10/invites/${code}?with_counts=true`, {
-        headers: { Accept: "application/json" },
-      }).then((r) => r.ok ? r.json() : null)
-    )
-  );
-
-  const servers = [];
-  results.forEach((res, i) => {
-    if (res.status !== "fulfilled" || !res.value) return;
-    const d = res.value;
-    const guild = d.guild ?? {};
-    if (!guild.name) return;
-    servers.push({
-      name:    guild.name,
-      desc:    guild.description ?? "",
-      members: d.approximate_member_count ?? 0,
-      online:  d.approximate_presence_count ?? 0,
-      invite:  `https://discord.gg/${codes[i]}`,
-      tags:    [],
-    });
-  });
-
-  return servers.sort((a, b) => b.members - a.members);
-}
-
 const FILTER_OPTIONS = [
   { value: "popular",    label: "Most Popular" },
   { value: "recent",     label: "Recent"       },
@@ -84,14 +30,13 @@ function sortPosts(posts, filter) {
   }
 }
 
-function sortServers(servers, filter) {
-  const arr = [...servers];
-  // When member counts aren't available, fall back to Reddit post score
+function sortCommunities(communities, filter) {
+  const arr = [...communities];
   switch (filter) {
-    case "recent":     return arr.sort((a, b) => (b.online ?? 0) - (a.online ?? 0));
-    case "popular":    return arr.sort((a, b) => (b.members ?? 0) - (a.members ?? 0));
-    case "ascending":  return arr.sort((a, b) => (a.name ?? "").localeCompare(b.name ?? ""));
-    case "descending": return arr.sort((a, b) => (b.name ?? "").localeCompare(a.name ?? ""));
+    case "popular":    return arr.sort((a, b) => (b.subscribers ?? 0) - (a.subscribers ?? 0));
+    case "recent":     return arr.sort((a, b) => (b.subscribers ?? 0) - (a.subscribers ?? 0));
+    case "ascending":  return arr.sort((a, b) => (a.subreddit ?? "").localeCompare(b.subreddit ?? ""));
+    case "descending": return arr.sort((a, b) => (b.subreddit ?? "").localeCompare(a.subreddit ?? ""));
     default:           return arr;
   }
 }
@@ -181,20 +126,18 @@ function RedditCard({ post, selected, onToggle, onConnect, connected }) {
   );
 }
 
-// ── DiscordCard ───────────────────────────────────────────────────────────────
+// ── CommunityCard ─────────────────────────────────────────────────────────────
 
-function DiscordCard({ server, selected, onToggle }) {
-  const tag = Array.isArray(server.tags) ? server.tags[0] : server.tag;
-
+function CommunityCard({ community, selected, onToggle }) {
   return (
     <div
       className={`relative rounded-xl border bg-white p-4 cursor-pointer transition-all duration-150 hover:shadow-sm ${
-        selected ? "border-indigo-400 ring-2 ring-indigo-100" : "border-gray-200 hover:border-gray-300"
+        selected ? "border-emerald-400 ring-2 ring-emerald-100" : "border-gray-200 hover:border-gray-300"
       }`}
       onClick={onToggle}
     >
       <div className={`absolute top-3 right-3 h-5 w-5 rounded border-2 flex items-center justify-center transition-colors ${
-        selected ? "bg-indigo-600 border-indigo-600" : "border-gray-300"
+        selected ? "bg-emerald-600 border-emerald-600" : "border-gray-300"
       }`}>
         {selected && (
           <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
@@ -204,42 +147,36 @@ function DiscordCard({ server, selected, onToggle }) {
       </div>
 
       <div className="flex items-start gap-3 pr-8">
-        <div className="shrink-0 h-9 w-9 rounded-lg bg-indigo-100 flex items-center justify-center">
-          <svg className="h-5 w-5 text-indigo-600" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M20.317 4.37a19.791 19.791 0 00-4.885-1.515.074.074 0 00-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 00-5.487 0 12.64 12.64 0 00-.617-1.25.077.077 0 00-.079-.037A19.736 19.736 0 003.677 4.37a.07.07 0 00-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 00.031.057 19.9 19.9 0 005.993 3.03.078.078 0 00.084-.028 14.09 14.09 0 001.226-1.994.076.076 0 00-.041-.106 13.107 13.107 0 01-1.872-.892.077.077 0 01-.008-.128 10.2 10.2 0 00.372-.292.074.074 0 01.077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 01.078.01c.12.098.246.198.373.292a.077.077 0 01-.006.127 12.299 12.299 0 01-1.873.892.077.077 0 00-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 00.084.028 19.839 19.839 0 006.002-3.03.077.077 0 00.032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 00-.031-.03z"/>
+        <div className="shrink-0 h-9 w-9 rounded-lg bg-orange-50 flex items-center justify-center">
+          <svg className="h-5 w-5 text-orange-500" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0zm5.01 4.744c.688 0 1.25.561 1.25 1.249a1.25 1.25 0 0 1-2.498.056l-2.597-.547-.8 3.747c1.824.07 3.48.632 4.674 1.488.308-.309.73-.491 1.207-.491.968 0 1.754.786 1.754 1.754 0 .716-.435 1.333-1.01 1.614a3.111 3.111 0 0 1 .042.52c0 2.694-3.13 4.87-7.004 4.87-3.874 0-7.004-2.176-7.004-4.87 0-.183.015-.366.043-.534A1.748 1.748 0 0 1 4.028 12c0-.968.786-1.754 1.754-1.754.463 0 .898.196 1.207.49 1.207-.883 2.878-1.43 4.744-1.487l.885-4.182a.342.342 0 0 1 .14-.197.35.35 0 0 1 .238-.042l2.906.617a1.214 1.214 0 0 1 1.108-.701zM9.25 12C8.561 12 8 12.562 8 13.25c0 .687.561 1.248 1.25 1.248.687 0 1.248-.561 1.248-1.249 0-.688-.561-1.249-1.249-1.249zm5.5 0c-.687 0-1.248.561-1.248 1.25 0 .687.561 1.248 1.249 1.248.688 0 1.249-.561 1.249-1.249 0-.687-.562-1.249-1.25-1.249zm-5.466 3.99a.327.327 0 0 0-.231.094.33.33 0 0 0 0 .463c.842.842 2.484.913 2.961.913.477 0 2.105-.056 2.961-.913a.361.361 0 0 0 .029-.463.33.33 0 0 0-.464 0c-.547.533-1.684.73-2.512.73-.828 0-1.979-.196-2.512-.73a.326.326 0 0 0-.232-.095z"/>
           </svg>
         </div>
         <div className="min-w-0">
-          <p className="text-sm font-semibold text-gray-900 truncate">{server.name}</p>
-          <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{server.desc || "Discord community server"}</p>
-          <div className="flex items-center gap-2 mt-2 flex-wrap">
-            {tag && (
-              <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-600">{tag}</span>
-            )}
-            {server.members > 0 && (
-              <span className="text-xs text-gray-400">{fmtMembers(server.members)} members</span>
-            )}
-            {server.online > 0 && (
-              <span className="flex items-center gap-1 text-xs text-green-600">
-                <span className="h-1.5 w-1.5 rounded-full bg-green-500 inline-block" />
-                {fmtMembers(server.online)} online
-              </span>
-            )}
-          </div>
+          <p className="text-sm font-semibold text-gray-900">r/{community.subreddit}</p>
+          {community.title && community.title !== `r/${community.subreddit}` && (
+            <p className="text-xs text-gray-500 truncate">{community.title}</p>
+          )}
+          {community.description && (
+            <p className="text-xs text-gray-400 mt-0.5 line-clamp-2">{community.description}</p>
+          )}
+          {community.subscribers > 0 && (
+            <div className="flex items-center gap-1 mt-1.5">
+              <span className="text-xs text-gray-400">{fmtMembers(community.subscribers)} members</span>
+            </div>
+          )}
         </div>
       </div>
 
-      {server.invite && (
-        <a
-          href={server.invite}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={(e) => e.stopPropagation()}
-          className="mt-3 block w-full rounded-lg border border-indigo-200 px-3 py-1.5 text-center text-xs font-semibold text-indigo-700 hover:bg-indigo-50 transition-colors"
-        >
-          Join Server ↗
-        </a>
-      )}
+      <a
+        href={community.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={(e) => e.stopPropagation()}
+        className="mt-3 block w-full rounded-lg border border-orange-200 px-3 py-1.5 text-center text-xs font-semibold text-orange-700 hover:bg-orange-50 transition-colors"
+      >
+        Browse Community ↗
+      </a>
     </div>
   );
 }
@@ -258,7 +195,7 @@ function PanelSpinner({ color, label }) {
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function OnlinePage() {
-  const [step, setStep]     = useState("select");
+  const [step, setStep]       = useState("select");
   const [mounted, setMounted] = useState(false);
   const [selected, setSelected] = useState(new Set());
 
@@ -268,20 +205,20 @@ export default function OnlinePage() {
   const [redditError, setRedditError]     = useState(null);
   const [redditFilter, setRedditFilter]   = useState("popular");
 
-  // Discord state
-  const [discordServers, setDiscordServers]   = useState([]);
-  const [discordLoading, setDiscordLoading]   = useState(false);
-  const [discordError, setDiscordError]       = useState(null);
-  const [discordFilter, setDiscordFilter]     = useState("popular");
+  // Client Communities state
+  const [communities, setCommunities]         = useState([]);
+  const [communityLoading, setCommunityLoading] = useState(false);
+  const [communityError, setCommunityError]   = useState(null);
+  const [communityFilter, setCommunityFilter] = useState("popular");
 
   // Selection + pipeline
-  const [redditSel, setRedditSel]       = useState(new Set());
-  const [discordSel, setDiscordSel]     = useState(new Set());
+  const [redditSel, setRedditSel]         = useState(new Set());
+  const [communitySel, setCommunitySel]   = useState(new Set());
   const [connectedUrls, setConnectedUrls] = useState(new Set());
-  const [confirming, setConfirming]     = useState(false);
+  const [confirming, setConfirming]       = useState(false);
 
-  const redditRef  = useRef(null);
-  const discordRef = useRef(null);
+  const redditRef    = useRef(null);
+  const communityRef = useRef(null);
 
   useEffect(() => {
     const t = setTimeout(() => setMounted(true), 50);
@@ -301,21 +238,20 @@ export default function OnlinePage() {
     setStep("results");
     setRedditLoading(true);
     setRedditError(null);
-    setDiscordLoading(true);
-    setDiscordError(null);
+    setCommunityLoading(true);
+    setCommunityError(null);
     setRedditPosts([]);
-    setDiscordServers([]);
+    setCommunities([]);
 
-    // Both searches run in parallel
     leadsService.redditSearch(svcs)
       .then((posts) => setRedditPosts(posts))
-      .catch(() => setRedditError("Could not load Reddit posts. Check Reddit API keys or try again."))
+      .catch(() => setRedditError("Could not load Reddit posts. Try again in a moment."))
       .finally(() => setRedditLoading(false));
 
-    fetchDiscordServers(svcs)
-      .then((servers) => setDiscordServers(servers))
-      .catch(() => setDiscordError("Could not load Discord servers. Try again in a moment."))
-      .finally(() => setDiscordLoading(false));
+    leadsService.communitySearch(svcs)
+      .then((subs) => setCommunities(subs))
+      .catch(() => setCommunityError("Could not load client communities. Try again in a moment."))
+      .finally(() => setCommunityLoading(false));
   }
 
   async function handleConnect(post) {
@@ -334,7 +270,7 @@ export default function OnlinePage() {
   }
 
   async function handleConfirm() {
-    const total = redditSel.size + discordSel.size;
+    const total = redditSel.size + communitySel.size;
     if (total === 0) return;
     setConfirming(true);
     try {
@@ -345,15 +281,15 @@ export default function OnlinePage() {
             const post = redditPosts.find((p) => p.source_url === url);
             return { source: "reddit", source_url: url, source_content: post?.title ?? "" };
           }),
-        ...[...discordSel].map((name) => {
-          const srv = discordServers.find((s) => s.name === name);
-          return { source: "discord", source_url: srv?.invite ?? "", source_content: name };
+        ...[...communitySel].map((sub) => {
+          const c = communities.find((c) => c.subreddit === sub);
+          return { source: "reddit", source_url: c?.url ?? `https://reddit.com/r/${sub}`, source_content: `r/${sub}` };
         }),
       ];
       if (payload.length) await leadsService.bulkCreate(payload);
       toast.success(`${total} lead${total > 1 ? "s" : ""} saved to pipeline`);
       setRedditSel(new Set());
-      setDiscordSel(new Set());
+      setCommunitySel(new Set());
     } catch {
       toast.error("Failed to save leads");
     } finally {
@@ -362,10 +298,10 @@ export default function OnlinePage() {
   }
 
   // Derived sorted lists
-  const sortedPosts   = sortPosts(redditPosts, redditFilter);
-  const sortedServers = sortServers(discordServers, discordFilter);
-  const totalSelected = redditSel.size + discordSel.size;
-  const totalCards    = redditPosts.length + discordServers.length;
+  const sortedPosts       = sortPosts(redditPosts, redditFilter);
+  const sortedCommunities = sortCommunities(communities, communityFilter);
+  const totalSelected     = redditSel.size + communitySel.size;
+  const totalCards        = redditPosts.length + communities.length;
 
   // ── Service selection screen ────────────────────────────────────────────────
   if (step === "select") {
@@ -392,8 +328,8 @@ export default function OnlinePage() {
                   : "bg-white border-gray-200 text-gray-700 hover:border-brand-400 hover:text-brand-600"
               }`}
               style={{
-                opacity:   mounted ? 1 : 0,
-                transform: mounted ? "translateY(0)" : "translateY(20px)",
+                opacity:    mounted ? 1 : 0,
+                transform:  mounted ? "translateY(0)" : "translateY(20px)",
                 transition: `opacity 500ms ease ${100 + i * 55}ms, transform 500ms ease ${100 + i * 55}ms, background-color 150ms, border-color 150ms, color 150ms`,
               }}
             >
@@ -451,7 +387,7 @@ export default function OnlinePage() {
             <svg className="h-4 w-4 text-orange-500" viewBox="0 0 24 24" fill="currentColor">
               <path d="M12 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0zm5.01 4.744c.688 0 1.25.561 1.25 1.249a1.25 1.25 0 0 1-2.498.056l-2.597-.547-.8 3.747c1.824.07 3.48.632 4.674 1.488.308-.309.73-.491 1.207-.491.968 0 1.754.786 1.754 1.754 0 .716-.435 1.333-1.01 1.614a3.111 3.111 0 0 1 .042.52c0 2.694-3.13 4.87-7.004 4.87-3.874 0-7.004-2.176-7.004-4.87 0-.183.015-.366.043-.534A1.748 1.748 0 0 1 4.028 12c0-.968.786-1.754 1.754-1.754.463 0 .898.196 1.207.49 1.207-.883 2.878-1.43 4.744-1.487l.885-4.182a.342.342 0 0 1 .14-.197.35.35 0 0 1 .238-.042l2.906.617a1.214 1.214 0 0 1 1.108-.701zM9.25 12C8.561 12 8 12.562 8 13.25c0 .687.561 1.248 1.25 1.248.687 0 1.248-.561 1.248-1.249 0-.688-.561-1.249-1.249-1.249zm5.5 0c-.687 0-1.248.561-1.248 1.25 0 .687.561 1.248 1.249 1.248.688 0 1.249-.561 1.249-1.249 0-.687-.562-1.249-1.25-1.249zm-5.466 3.99a.327.327 0 0 0-.231.094.33.33 0 0 0 0 .463c.842.842 2.484.913 2.961.913.477 0 2.105-.056 2.961-.913a.361.361 0 0 0 .029-.463.33.33 0 0 0-.464 0c-.547.533-1.684.73-2.512.73-.828 0-1.979-.196-2.512-.73a.326.326 0 0 0-.232-.095z"/>
             </svg>
-            <span className="text-sm font-semibold text-gray-800">Reddit</span>
+            <span className="text-sm font-semibold text-gray-800">Reddit Posts</span>
             {!redditLoading && redditPosts.length > 0 && (
               <span className="text-xs text-gray-400">{redditPosts.length} posts</span>
             )}
@@ -490,41 +426,41 @@ export default function OnlinePage() {
           </div>
         </div>
 
-        {/* ── Discord panel ── */}
+        {/* ── Client Communities panel ── */}
         <div className="flex-1 flex flex-col min-h-0">
           <div className="shrink-0 px-4 py-3 border-b border-gray-100 bg-white flex items-center gap-2">
-            <svg className="h-4 w-4 text-indigo-500" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M20.317 4.37a19.791 19.791 0 00-4.885-1.515.074.074 0 00-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 00-5.487 0 12.64 12.64 0 00-.617-1.25.077.077 0 00-.079-.037A19.736 19.736 0 003.677 4.37a.07.07 0 00-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 00.031.057 19.9 19.9 0 005.993 3.03.078.078 0 00.084-.028 14.09 14.09 0 001.226-1.994.076.076 0 00-.041-.106 13.107 13.107 0 01-1.872-.892.077.077 0 01-.008-.128 10.2 10.2 0 00.372-.292.074.074 0 01.077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 01.078.01c.12.098.246.198.373.292a.077.077 0 01-.006.127 12.299 12.299 0 01-1.873.892.077.077 0 00-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 00.084.028 19.839 19.839 0 006.002-3.03.077.077 0 00.032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 00-.031-.03z"/>
+            <svg className="h-4 w-4 text-emerald-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
             </svg>
-            <span className="text-sm font-semibold text-gray-800">Discord</span>
-            {!discordLoading && discordServers.length > 0 && (
-              <span className="text-xs text-gray-400">{discordServers.length} servers</span>
+            <span className="text-sm font-semibold text-gray-800">Client Communities</span>
+            {!communityLoading && communities.length > 0 && (
+              <span className="text-xs text-gray-400">{communities.length} communities</span>
             )}
-            {!discordLoading && discordServers.length > 0 && (
-              <FilterSelect value={discordFilter} onChange={setDiscordFilter} />
+            {!communityLoading && communities.length > 0 && (
+              <FilterSelect value={communityFilter} onChange={setCommunityFilter} />
             )}
           </div>
 
-          <div ref={discordRef} className="flex-1 overflow-y-auto p-4 space-y-3">
-            {discordLoading ? (
-              <PanelSpinner color="border-indigo-400" label="Searching Discord servers…" />
-            ) : discordError ? (
+          <div ref={communityRef} className="flex-1 overflow-y-auto p-4 space-y-3">
+            {communityLoading ? (
+              <PanelSpinner color="border-emerald-400" label="Finding client communities…" />
+            ) : communityError ? (
               <div className="flex items-center justify-center h-full">
-                <p className="text-sm text-center text-gray-500 max-w-xs">{discordError}</p>
+                <p className="text-sm text-center text-gray-500 max-w-xs">{communityError}</p>
               </div>
-            ) : sortedServers.length === 0 ? (
+            ) : sortedCommunities.length === 0 ? (
               <div className="flex items-center justify-center h-full">
-                <p className="text-sm text-gray-400">No Discord servers found for these services.</p>
+                <p className="text-sm text-gray-400">No communities found for these services.</p>
               </div>
             ) : (
-              sortedServers.map((server) => (
-                <DiscordCard
-                  key={server.name}
-                  server={server}
-                  selected={discordSel.has(server.name)}
-                  onToggle={() => setDiscordSel((prev) => {
+              sortedCommunities.map((community) => (
+                <CommunityCard
+                  key={community.subreddit}
+                  community={community}
+                  selected={communitySel.has(community.subreddit)}
+                  onToggle={() => setCommunitySel((prev) => {
                     const next = new Set(prev);
-                    next.has(server.name) ? next.delete(server.name) : next.add(server.name);
+                    next.has(community.subreddit) ? next.delete(community.subreddit) : next.add(community.subreddit);
                     return next;
                   })}
                 />

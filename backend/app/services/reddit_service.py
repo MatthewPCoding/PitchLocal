@@ -11,6 +11,32 @@ _REDDIT_HEADERS = {
 }
 
 
+async def fetch_subreddit_info(subreddit: str) -> dict | None:
+    """Fetch subscriber count and description for a subreddit via public about.json."""
+    try:
+        async with httpx.AsyncClient(
+            headers=_REDDIT_HEADERS, timeout=10, follow_redirects=True
+        ) as client:
+            resp = await client.get(
+                f"https://www.reddit.com/r/{subreddit}/about.json",
+                params={"raw_json": "1"},
+            )
+        if resp.status_code != 200:
+            log.warning("Reddit about r/%s returned HTTP %s", subreddit, resp.status_code)
+            return None
+        data = resp.json().get("data", {})
+        return {
+            "subreddit":   subreddit,
+            "title":       data.get("title", f"r/{subreddit}"),
+            "description": (data.get("public_description") or data.get("description") or "")[:300],
+            "subscribers": data.get("subscribers", 0),
+            "url":         f"https://reddit.com/r/{subreddit}",
+        }
+    except Exception as exc:
+        log.exception("fetch_subreddit_info r/%s failed: %s", subreddit, exc)
+        return None
+
+
 async def async_search_subreddit(subreddit: str, keywords: list[str], limit: int = 25) -> list[dict]:
     """Search using Reddit's public JSON API — no API credentials required."""
     query = " OR ".join(keywords[:10])

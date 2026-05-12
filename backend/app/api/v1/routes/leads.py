@@ -44,6 +44,20 @@ _SERVICE_KEYWORDS: dict[str, list[str]] = {
     "Consulting":             ["consultant", "consulting", "business strategy", "business advice", "coaching"],
 }
 
+# Subreddits where TARGET CLIENTS (businesses, entrepreneurs) hang out
+_SERVICE_CLIENT_SUBS: dict[str, list[str]] = {
+    "Web Development":        ["entrepreneur", "smallbusiness", "ecommerce", "Etsy", "shopify", "startups", "dropshipping"],
+    "Mobile App Development": ["entrepreneur", "startups", "smallbusiness", "ecommerce", "SideProject"],
+    "Brand Design":           ["entrepreneur", "smallbusiness", "streetwear", "Etsy", "FashionDesigner", "startups"],
+    "Social Media Management":["smallbusiness", "entrepreneur", "InstagramMarketing", "marketing", "socialmedia"],
+    "SEO / Digital Marketing":["entrepreneur", "smallbusiness", "ecommerce", "startups", "marketing"],
+    "Copywriting":            ["entrepreneur", "smallbusiness", "marketing", "content_marketing", "startups"],
+    "Video Production":       ["smallbusiness", "entrepreneur", "NewTubers", "youtube", "videography"],
+    "Photography":            ["weddingplanning", "realestate", "Etsy", "smallbusiness", "entrepreneur"],
+    "Bookkeeping":            ["smallbusiness", "Etsy", "ecommerce", "selfemployed", "Entrepreneur"],
+    "Consulting":             ["entrepreneur", "startups", "smallbusiness", "SideProject", "business"],
+}
+
 
 @router.get("/reddit-search")
 async def reddit_search(
@@ -94,20 +108,12 @@ async def connectivity_check():
     except Exception as exc:
         out["reddit"] = {"error": type(exc).__name__, "detail": str(exc)}
 
+    from app.services.discord_service import search_discord_servers
     try:
-        async with httpx.AsyncClient(timeout=15, follow_redirects=True) as c:
-            r = await c.get(
-                "https://www.reddit.com/r/discordservers/search.json",
-                params={"q": "web developer", "sort": "new", "limit": 3, "restrict_sr": "on", "raw_json": "1"},
-                headers={"User-Agent": "Mozilla/5.0 (compatible; PitchLocal/1.0)"},
-            )
-        body = r.json()
-        if isinstance(body, list):
-            body = body[0]
-        kids = body.get("data", {}).get("children", [])
-        out["discord_via_reddit"] = {"http_status": r.status_code, "posts_returned": len(kids)}
+        servers = await search_discord_servers(["Web Development"], limit=3)
+        out["discord"] = {"source": "curated_registry", "servers_returned": len(servers)}
     except Exception as exc:
-        out["discord_via_reddit"] = {"error": type(exc).__name__, "detail": str(exc)}
+        out["discord"] = {"error": type(exc).__name__, "detail": str(exc)}
 
     return out
 
@@ -117,24 +123,39 @@ async def discord_search(
     services: str = Query(..., description="Comma-separated service names"),
     current_user: User = Depends(get_current_user),
 ):
-    """Search r/discordservers for Discord communities matching the selected services.
-    Uses Reddit's public JSON API (no credentials) to avoid Discord IP rate limits."""
+    """Return curated Discord communities for the selected service types."""
     from app.services.discord_service import search_discord_servers
 
     service_list = [s.strip() for s in services.split(",") if s.strip()]
-
-    keywords: list[str] = []
-    seen_kws: set[str] = set()
-    for svc in service_list:
-        for kw in _SERVICE_KEYWORDS.get(svc, []):
-            if kw not in seen_kws:
-                seen_kws.add(kw)
-                keywords.append(kw)
-
-    if not keywords:
+    if not service_list:
         return []
 
-    return await search_discord_servers(keywords, limit=20)
+    return await search_discord_servers(service_list, limit=20)
+
+
+@router.get("/community-search")
+async def community_search(
+    services: str = Query(..., description="Comma-separated service names"),
+    current_user: User = Depends(get_current_user),
+):
+    """Return client-focused subreddits (businesses, entrepreneurs) for the selected service types."""
+    from app.services.reddit_service import fetch_subreddit_info
+
+    service_list = [s.strip() for s in services.split(",") if s.strip()]
+
+    seen: set[str] = set()
+    subs: list[str] = []
+    for svc in service_list:
+        for sub in _SERVICE_CLIENT_SUBS.get(svc, []):
+            if sub not in seen:
+                seen.add(sub)
+                subs.append(sub)
+
+    if not subs:
+        return []
+
+    results = await asyncio.gather(*[fetch_subreddit_info(s) for s in subs])
+    return [r for r in results if r is not None]
 
 
 @router.post("/bulk", status_code=201)
