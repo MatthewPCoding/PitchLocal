@@ -38,26 +38,40 @@ async def fetch_subreddit_info(subreddit: str) -> dict | None:
 
 
 async def async_search_subreddit(subreddit: str, keywords: list[str], limit: int = 25) -> list[dict]:
-    """Search using Reddit's public JSON API — no API credentials required."""
-    query = " OR ".join(keywords[:10])
-    try:
-        async with httpx.AsyncClient(
-            headers=_REDDIT_HEADERS, timeout=15, follow_redirects=True
-        ) as client:
-            resp = await client.get(
-                f"https://www.reddit.com/r/{subreddit}/search.json",
-                params={"q": query, "sort": "new", "limit": limit, "restrict_sr": "on", "raw_json": "1"},
-            )
-        if resp.status_code != 200:
-            log.warning("Reddit search r/%s returned HTTP %s", subreddit, resp.status_code)
+    """Search using Reddit's public JSON API — no API credentials required.
+    Retries once with a shorter keyword list if rate-limited (429)."""
+    import asyncio as _asyncio
+
+    keyword_sets = [keywords[:10], keywords[:4]]  # full set, then trimmed fallback
+
+    for attempt, kws in enumerate(keyword_sets):
+        query = " OR ".join(kws)
+        try:
+            async with httpx.AsyncClient(
+                headers=_REDDIT_HEADERS, timeout=15, follow_redirects=True
+            ) as client:
+                resp = await client.get(
+                    f"https://www.reddit.com/r/{subreddit}/search.json",
+                    params={"q": query, "sort": "new", "limit": limit, "restrict_sr": "on", "raw_json": "1"},
+                )
+            if resp.status_code == 429:
+                log.warning("Reddit 429 on r/%s attempt %s — retrying in 3s", subreddit, attempt + 1)
+                await _asyncio.sleep(3)
+                continue
+            if resp.status_code != 200:
+                log.warning("Reddit search r/%s returned HTTP %s", subreddit, resp.status_code)
+                return []
+            body = resp.json()
+            # Reddit sometimes wraps in a list [listing, comments]
+            if isinstance(body, list):
+                body = body[0]
+            children = body.get("data", {}).get("children", [])
+            break
+        except Exception as exc:
+            log.exception("Reddit search r/%s failed: %s", subreddit, exc)
             return []
-        body = resp.json()
-        # Reddit sometimes wraps in a list [listing, comments]
-        if isinstance(body, list):
-            body = body[0]
-        children = body.get("data", {}).get("children", [])
-    except Exception as exc:
-        log.exception("Reddit search r/%s failed: %s", subreddit, exc)
+    else:
+        log.warning("Reddit search r/%s exhausted retries", subreddit)
         return []
 
     results = []
