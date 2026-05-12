@@ -1,7 +1,10 @@
+import logging
 import re
 from html.parser import HTMLParser
 
 import httpx
+
+log = logging.getLogger(__name__)
 
 # ── Discord public discovery API ──────────────────────────────────────────────
 # Discord exposes a public, unauthenticated discovery search used by their
@@ -29,9 +32,11 @@ async def _discord_discovery(keyword: str, limit: int) -> list[dict]:
                 params={"query": keyword, "limit": min(limit, 24), "offset": 0},
             )
         if resp.status_code != 200:
+            log.warning("Discord discovery returned HTTP %s", resp.status_code)
             return []
         guilds = resp.json().get("hits", [])
-    except Exception:
+    except Exception as exc:
+        log.exception("Discord discovery request failed: %s", exc)
         return []
 
     results = []

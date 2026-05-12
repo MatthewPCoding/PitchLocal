@@ -1,6 +1,9 @@
+import logging
 import httpx
 import praw
 from app.core.config import settings
+
+log = logging.getLogger(__name__)
 
 _REDDIT_HEADERS = {
     "User-Agent": "Mozilla/5.0 (compatible; PitchLocal/1.0; +https://pitchlocal.app)",
@@ -20,13 +23,15 @@ async def async_search_subreddit(subreddit: str, keywords: list[str], limit: int
                 params={"q": query, "sort": "new", "limit": limit, "restrict_sr": "on", "raw_json": "1"},
             )
         if resp.status_code != 200:
+            log.warning("Reddit search r/%s returned HTTP %s", subreddit, resp.status_code)
             return []
         body = resp.json()
         # Reddit sometimes wraps in a list [listing, comments]
         if isinstance(body, list):
             body = body[0]
         children = body.get("data", {}).get("children", [])
-    except Exception:
+    except Exception as exc:
+        log.exception("Reddit search r/%s failed: %s", subreddit, exc)
         return []
 
     results = []

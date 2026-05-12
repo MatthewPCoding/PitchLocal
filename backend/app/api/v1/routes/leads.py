@@ -87,6 +87,42 @@ async def reddit_search(
     return posts[:60]
 
 
+@router.get("/connectivity-check")
+async def connectivity_check(current_user: User = Depends(get_current_user)):
+    """Debug endpoint: tests whether Render can reach Reddit and Discord APIs."""
+    import httpx
+    out: dict = {}
+
+    try:
+        async with httpx.AsyncClient(timeout=15, follow_redirects=True) as c:
+            r = await c.get(
+                "https://www.reddit.com/r/forhire/search.json",
+                params={"q": "web developer", "sort": "new", "limit": 3, "restrict_sr": "on", "raw_json": "1"},
+                headers={"User-Agent": "Mozilla/5.0 (compatible; PitchLocal/1.0)"},
+            )
+        body = r.json()
+        if isinstance(body, list):
+            body = body[0]
+        kids = body.get("data", {}).get("children", [])
+        out["reddit"] = {"http_status": r.status_code, "posts_returned": len(kids)}
+    except Exception as exc:
+        out["reddit"] = {"error": type(exc).__name__, "detail": str(exc)}
+
+    try:
+        async with httpx.AsyncClient(timeout=15, follow_redirects=True) as c:
+            r = await c.get(
+                "https://discord.com/api/v10/discovery/search",
+                params={"query": "web development", "limit": 3},
+                headers={"User-Agent": "Mozilla/5.0 Chrome/124", "Accept": "application/json"},
+            )
+        hits = r.json().get("hits", [])
+        out["discord"] = {"http_status": r.status_code, "servers_returned": len(hits)}
+    except Exception as exc:
+        out["discord"] = {"error": type(exc).__name__, "detail": str(exc)}
+
+    return out
+
+
 @router.get("/discord-search")
 async def discord_search(
     services: str = Query(..., description="Comma-separated service names"),
