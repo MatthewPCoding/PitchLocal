@@ -10,6 +10,59 @@ const SERVICES = [
   "Video Production", "Photography", "Bookkeeping", "Consulting",
 ];
 
+// ── Service → keyword map (browser-side Reddit search bypasses Render IP blocks) ─
+
+const SERVICE_KEYWORDS = {
+  "Web Development":        ["website", "web developer", "web development", "frontend", "backend", "full stack"],
+  "Mobile App Development": ["mobile app", "app development", "iOS", "android", "flutter", "react native"],
+  "Brand Design":           ["logo", "brand design", "graphic design", "branding", "visual identity"],
+  "Social Media Management":["social media", "instagram", "content creator", "marketing", "content strategy"],
+  "SEO / Digital Marketing":["SEO", "search engine", "digital marketing", "google ranking", "paid ads"],
+  "Copywriting":            ["copywriter", "content writer", "blog writing", "copy", "email marketing"],
+  "Video Production":       ["video", "filming", "video editing", "videographer", "youtube"],
+  "Photography":            ["photographer", "photoshoot", "product photos", "headshots"],
+  "Bookkeeping":            ["bookkeeping", "accounting", "taxes", "QuickBooks", "finances"],
+  "Consulting":             ["consultant", "consulting", "business strategy", "business advice", "coaching"],
+};
+
+async function fetchRedditPosts(services) {
+  const keywords = new Set();
+  for (const svc of services) {
+    for (const kw of SERVICE_KEYWORDS[svc] ?? []) keywords.add(kw);
+  }
+  if (!keywords.size) return [];
+
+  const query = [...keywords].slice(0, 10).join(" OR ");
+  try {
+    const resp = await fetch(
+      `https://www.reddit.com/r/forhire/search.json?q=${encodeURIComponent(query)}&sort=new&limit=60&restrict_sr=on&raw_json=1`,
+      { headers: { Accept: "application/json" } }
+    );
+    if (!resp.ok) return [];
+    let body = await resp.json();
+    if (Array.isArray(body)) body = body[0];
+    const children = body?.data?.children ?? [];
+    return children
+      .map((p) => {
+        const d = p.data ?? {};
+        if (!d.permalink) return null;
+        return {
+          platform:    "reddit",
+          source_url:  `https://reddit.com${d.permalink}`,
+          title:       d.title ?? "",
+          content:     (d.selftext ?? "").slice(0, 500),
+          subreddit:   d.subreddit ?? "forhire",
+          created_utc: d.created_utc ?? 0,
+          score:       d.score ?? 0,
+        };
+      })
+      .filter(Boolean)
+      .sort((a, b) => b.score - a.score);
+  } catch {
+    return [];
+  }
+}
+
 const FILTER_OPTIONS = [
   { value: "popular",    label: "Most Popular" },
   { value: "recent",     label: "Recent"       },
@@ -243,7 +296,7 @@ export default function OnlinePage() {
     setRedditPosts([]);
     setCommunities([]);
 
-    leadsService.redditSearch(svcs)
+    fetchRedditPosts(svcs)
       .then((posts) => setRedditPosts(posts))
       .catch(() => setRedditError("Could not load Reddit posts. Try again in a moment."))
       .finally(() => setRedditLoading(false));
