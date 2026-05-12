@@ -296,7 +296,7 @@ export default function OnlinePage() {
     setRedditPosts([]);
     setCommunities([]);
 
-    fetchRedditPosts(svcs)
+    leadsService.redditSearch(svcs)
       .then((posts) => setRedditPosts(posts))
       .catch(() => setRedditError("Could not load Reddit posts. Try again in a moment."))
       .finally(() => setRedditLoading(false));

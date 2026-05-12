@@ -89,31 +89,29 @@ async def reddit_search(
 
 @router.get("/connectivity-check")
 async def connectivity_check():
-    """Debug endpoint: tests whether Render can reach Reddit and Discord APIs."""
+    """Debug endpoint: tests Reddit search with both a simple and a full keyword query."""
     import httpx
     out: dict = {}
+    headers = {"User-Agent": "Mozilla/5.0 (compatible; PitchLocal/1.0)"}
 
-    try:
-        async with httpx.AsyncClient(timeout=15, follow_redirects=True) as c:
-            r = await c.get(
-                "https://www.reddit.com/r/forhire/search.json",
-                params={"q": "web developer", "sort": "new", "limit": 3, "restrict_sr": "on", "raw_json": "1"},
-                headers={"User-Agent": "Mozilla/5.0 (compatible; PitchLocal/1.0)"},
-            )
-        body = r.json()
-        if isinstance(body, list):
-            body = body[0]
-        kids = body.get("data", {}).get("children", [])
-        out["reddit"] = {"http_status": r.status_code, "posts_returned": len(kids)}
-    except Exception as exc:
-        out["reddit"] = {"error": type(exc).__name__, "detail": str(exc)}
-
-    from app.services.discord_service import search_discord_servers
-    try:
-        servers = await search_discord_servers(["Web Development"], limit=3)
-        out["discord"] = {"source": "curated_registry", "servers_returned": len(servers)}
-    except Exception as exc:
-        out["discord"] = {"error": type(exc).__name__, "detail": str(exc)}
+    for label, query in [
+        ("reddit_simple", "web developer"),
+        ("reddit_full",   "website OR web developer OR web development OR frontend OR backend OR full stack"),
+    ]:
+        try:
+            async with httpx.AsyncClient(timeout=15, follow_redirects=True) as c:
+                r = await c.get(
+                    "https://www.reddit.com/r/forhire/search.json",
+                    params={"q": query, "sort": "new", "limit": 10, "restrict_sr": "on", "raw_json": "1"},
+                    headers=headers,
+                )
+            body = r.json()
+            if isinstance(body, list):
+                body = body[0]
+            kids = body.get("data", {}).get("children", [])
+            out[label] = {"http_status": r.status_code, "posts_returned": len(kids)}
+        except Exception as exc:
+            out[label] = {"error": type(exc).__name__, "detail": str(exc)}
 
     return out
 
