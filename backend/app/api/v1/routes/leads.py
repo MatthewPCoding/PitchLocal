@@ -88,7 +88,7 @@ async def reddit_search(
 
 
 @router.get("/connectivity-check")
-async def connectivity_check(current_user: User = Depends(get_current_user)):
+async def connectivity_check():
     """Debug endpoint: tests whether Render can reach Reddit and Discord APIs."""
     import httpx
     out: dict = {}
