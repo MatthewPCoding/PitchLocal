@@ -111,7 +111,27 @@ async def connectivity_check():
     except Exception as exc:
         out["raw_http"] = {"error": type(exc).__name__, "detail": str(exc)}
 
-    # 2. Full code path test (same function the route uses)
+    # 2. Test OR query directly (same headers + params as async_search_subreddit)
+    import httpx as _httpx
+    from app.services.reddit_service import _REDDIT_HEADERS
+    or_query = "website OR web developer OR web development OR frontend OR backend OR full stack"
+    try:
+        async with _httpx.AsyncClient(headers=_REDDIT_HEADERS, timeout=15, follow_redirects=True) as c:
+            r2 = await c.get(
+                "https://www.reddit.com/r/forhire/search.json",
+                params={"q": or_query, "sort": "new", "limit": 10, "restrict_sr": "on", "raw_json": "1"},
+            )
+        try:
+            body2 = r2.json()
+            if isinstance(body2, list): body2 = body2[0]
+            kids2 = body2.get("data", {}).get("children", [])
+            out["or_query"] = {"http_status": r2.status_code, "posts_returned": len(kids2)}
+        except Exception:
+            out["or_query"] = {"http_status": r2.status_code, "raw_body": r2.text[:200]}
+    except Exception as exc:
+        out["or_query"] = {"error": type(exc).__name__, "detail": str(exc)}
+
+    # 3. Full code path test (same function the route uses)
     from app.services.reddit_service import async_search_subreddit
     try:
         keywords = ["website", "web developer", "web development", "frontend", "backend", "full stack"]
