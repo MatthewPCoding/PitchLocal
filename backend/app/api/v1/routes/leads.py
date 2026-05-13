@@ -64,9 +64,9 @@ async def reddit_search(
     services: str = Query(..., description="Comma-separated service names"),
     current_user: User = Depends(get_current_user),
 ):
-    """Search r/forhire using the public Reddit JSON API (no credentials needed).
-    Single request avoids the concurrent rate-limiting that blocks multi-sub searches."""
-    from app.services.reddit_service import async_search_subreddit
+    """Search r/forhire. Uses PRAW OAuth (oauth.reddit.com) when credentials are set,
+    which bypasses the IP-level rate limit Render gets on anonymous www.reddit.com calls."""
+    from app.core.config import settings
 
     service_list = [s.strip() for s in services.split(",") if s.strip()]
 
@@ -77,11 +77,23 @@ async def reddit_search(
     if not keywords:
         return []
 
-    # r/forhire covers all service types — single request prevents rate limiting
-    try:
-        posts = await async_search_subreddit("forhire", list(keywords), limit=60)
-    except Exception:
-        posts = []
+    kw_list = list(keywords)
+    has_creds = settings.REDDIT_CLIENT_ID not in ("", "...", None) and \
+                settings.REDDIT_CLIENT_SECRET not in ("", "...", None)
+
+    if has_creds:
+        from app.services.reddit_service import search_subreddit
+        loop = asyncio.get_event_loop()
+        try:
+            posts = await loop.run_in_executor(None, lambda: search_subreddit("forhire", kw_list, limit=60))
+        except Exception:
+            posts = []
+    else:
+        from app.services.reddit_service import async_search_subreddit
+        try:
+            posts = await async_search_subreddit("forhire", kw_list, limit=60)
+        except Exception:
+            posts = []
 
     posts.sort(key=lambda p: p.get("score", 0), reverse=True)
     return posts[:60]
@@ -131,17 +143,21 @@ async def connectivity_check():
     except Exception as exc:
         out["or_query"] = {"error": type(exc).__name__, "detail": str(exc)}
 
-    # 3. Full code path test (same function the route uses)
-    from app.services.reddit_service import async_search_subreddit
-    try:
-        keywords = ["website", "web developer", "web development", "frontend", "backend", "full stack"]
-        posts = await async_search_subreddit("forhire", keywords, limit=10)
-        out["async_search"] = {
-            "posts_returned": len(posts),
-            "sample_title": posts[0]["title"][:80] if posts else None,
-        }
-    except Exception as exc:
-        out["async_search"] = {"error": type(exc).__name__, "detail": str(exc)}
+    # 3. PRAW OAuth path (uses oauth.reddit.com — not IP-blocked)
+    import asyncio as _asyncio
+    from app.core.config import settings as _settings
+    has_creds = _settings.REDDIT_CLIENT_ID not in ("", "...", None) and \
+                _settings.REDDIT_CLIENT_SECRET not in ("", "...", None)
+    if has_creds:
+        from app.services.reddit_service import search_subreddit
+        loop = _asyncio.get_event_loop()
+        try:
+            posts = await loop.run_in_executor(None, lambda: search_subreddit("forhire", ["web developer"], limit=3))
+            out["praw_oauth"] = {"posts_returned": len(posts), "sample": posts[0]["title"][:60] if posts else None}
+        except Exception as exc:
+            out["praw_oauth"] = {"error": type(exc).__name__, "detail": str(exc)}
+    else:
+        out["praw_oauth"] = {"status": "no credentials — add REDDIT_CLIENT_ID + REDDIT_CLIENT_SECRET in Render env vars"}
 
     return out
 
