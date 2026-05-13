@@ -105,11 +105,15 @@ async def connectivity_check():
                     params={"q": query, "sort": "new", "limit": 10, "restrict_sr": "on", "raw_json": "1"},
                     headers=headers,
                 )
-            body = r.json()
-            if isinstance(body, list):
-                body = body[0]
-            kids = body.get("data", {}).get("children", [])
-            out[label] = {"http_status": r.status_code, "posts_returned": len(kids)}
+            raw = r.text[:300]
+            try:
+                body = r.json()
+                if isinstance(body, list):
+                    body = body[0]
+                kids = body.get("data", {}).get("children", [])
+                out[label] = {"http_status": r.status_code, "posts_returned": len(kids)}
+            except Exception:
+                out[label] = {"http_status": r.status_code, "raw_body": raw}
         except Exception as exc:
             out[label] = {"error": type(exc).__name__, "detail": str(exc)}
 
