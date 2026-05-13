@@ -89,33 +89,39 @@ async def reddit_search(
 
 @router.get("/connectivity-check")
 async def connectivity_check():
-    """Debug endpoint: tests Reddit search with both a simple and a full keyword query."""
+    """Debug endpoint: tests raw Reddit HTTP and the full async_search_subreddit code path."""
     import httpx
     out: dict = {}
-    headers = {"User-Agent": "Mozilla/5.0 (compatible; PitchLocal/1.0)"}
 
-    for label, query in [
-        ("reddit_simple", "web developer"),
-        ("reddit_full",   "website OR web developer OR web development OR frontend OR backend OR full stack"),
-    ]:
+    # 1. Raw HTTP test
+    try:
+        async with httpx.AsyncClient(timeout=15, follow_redirects=True) as c:
+            r = await c.get(
+                "https://www.reddit.com/r/forhire/search.json",
+                params={"q": "web developer", "sort": "new", "limit": 5, "restrict_sr": "on", "raw_json": "1"},
+                headers={"User-Agent": "Mozilla/5.0 (compatible; PitchLocal/1.0)"},
+            )
         try:
-            async with httpx.AsyncClient(timeout=15, follow_redirects=True) as c:
-                r = await c.get(
-                    "https://www.reddit.com/r/forhire/search.json",
-                    params={"q": query, "sort": "new", "limit": 10, "restrict_sr": "on", "raw_json": "1"},
-                    headers=headers,
-                )
-            raw = r.text[:300]
-            try:
-                body = r.json()
-                if isinstance(body, list):
-                    body = body[0]
-                kids = body.get("data", {}).get("children", [])
-                out[label] = {"http_status": r.status_code, "posts_returned": len(kids)}
-            except Exception:
-                out[label] = {"http_status": r.status_code, "raw_body": raw}
-        except Exception as exc:
-            out[label] = {"error": type(exc).__name__, "detail": str(exc)}
+            body = r.json()
+            if isinstance(body, list): body = body[0]
+            kids = body.get("data", {}).get("children", [])
+            out["raw_http"] = {"http_status": r.status_code, "posts_returned": len(kids)}
+        except Exception:
+            out["raw_http"] = {"http_status": r.status_code, "raw_body": r.text[:200]}
+    except Exception as exc:
+        out["raw_http"] = {"error": type(exc).__name__, "detail": str(exc)}
+
+    # 2. Full code path test (same function the route uses)
+    from app.services.reddit_service import async_search_subreddit
+    try:
+        keywords = ["website", "web developer", "web development", "frontend", "backend", "full stack"]
+        posts = await async_search_subreddit("forhire", keywords, limit=10)
+        out["async_search"] = {
+            "posts_returned": len(posts),
+            "sample_title": posts[0]["title"][:80] if posts else None,
+        }
+    except Exception as exc:
+        out["async_search"] = {"error": type(exc).__name__, "detail": str(exc)}
 
     return out
 
