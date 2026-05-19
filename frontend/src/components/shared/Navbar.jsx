@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, NavLink, useNavigate } from "react-router-dom";
+import { Link, NavLink, useNavigate, useMatch } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import { useNotificationContext } from "../../context/NotificationContext";
 import NotificationPanel from "./Notification";
@@ -10,7 +10,6 @@ const NAV_LINKS = [
   { to: "/search",    label: "Search"    },
   { to: "/online",    label: "Online"    },
   { to: "/pipeline",  label: "Pipeline"  },
-  { to: "/profile",   label: "Profile"   },
 ];
 
 export default function Navbar() {
@@ -18,6 +17,7 @@ export default function Navbar() {
   const { unreadCount }  = useNotificationContext();
   const navigate         = useNavigate();
   const [notifOpen, setNotifOpen] = useState(false);
+  const profileActive    = useMatch("/profile");
 
   function handleLogout() {
     logout();
@@ -79,6 +79,22 @@ export default function Navbar() {
               </button>
               <NotificationPanel open={notifOpen} onClose={() => setNotifOpen(false)} />
             </div>
+
+            {/* Settings icon */}
+            <NavLink
+              to="/profile"
+              aria-label="Settings"
+              className={`rounded-full p-1.5 transition-colors ${
+                profileActive
+                  ? "text-brand-600 bg-brand-50"
+                  : "text-gray-500 hover:bg-gray-100 hover:text-gray-900"
+              }`}
+            >
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </NavLink>
 
             <button
               onClick={handleLogout}
