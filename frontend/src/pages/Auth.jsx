@@ -11,11 +11,17 @@ export default function Auth() {
 
   // Allow /auth?mode=register to open the register tab directly.
   const [mode, setMode] = useState(params.get("mode") === "register" ? "register" : "login");
+  const [mounted, setMounted] = useState(false);
 
   // Already logged in → go to dashboard.
   useEffect(() => {
     if (!loading && user) navigate("/dashboard", { replace: true });
   }, [user, loading, navigate]);
+
+  useEffect(() => {
+    const t = setTimeout(() => setMounted(true), 50);
+    return () => clearTimeout(t);
+  }, []);
 
   if (loading) return null;
 
@@ -23,13 +29,27 @@ export default function Auth() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
       <div className="w-full max-w-md">
         {/* Logo / brand */}
-        <div className="text-center mb-8">
+        <div
+          className="text-center mb-8"
+          style={{
+            opacity:    mounted ? 1 : 0,
+            transform:  mounted ? "translateY(0)" : "translateY(28px)",
+            transition: "opacity 600ms ease, transform 600ms ease",
+          }}
+        >
           <h1 className="text-3xl font-bold text-brand-600">PitchLocal</h1>
           <p className="mt-1 text-sm text-gray-500">Find leads. Generate pitches. Land clients.</p>
         </div>
 
         {/* Card */}
-        <div className="bg-white rounded-2xl shadow-md px-8 py-8">
+        <div
+          className="bg-white rounded-2xl shadow-md px-8 py-8"
+          style={{
+            opacity:    mounted ? 1 : 0,
+            transform:  mounted ? "translateY(0)" : "translateY(28px)",
+            transition: "opacity 600ms ease 120ms, transform 600ms ease 120ms",
+          }}
+        >
           {/* Tab switcher */}
           <div className="flex rounded-lg bg-gray-100 p-1 mb-6">
             {["login", "register"].map((m) => (
