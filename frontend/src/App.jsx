@@ -28,6 +28,9 @@ function AppShell({ children }) {
     <NotificationProvider>
       <Navbar />
       <main>{children}</main>
+      <footer className="border-t border-gray-100 py-4 text-center text-xs text-gray-400">
+        PitchLocal &copy; 2026
+      </footer>
     </NotificationProvider>
   );
 }
