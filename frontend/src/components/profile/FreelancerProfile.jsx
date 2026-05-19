@@ -10,11 +10,10 @@ import toast from "react-hot-toast";
 export default function FreelancerProfile() {
   const { user, setUser } = useAuth();
   const [form, setForm] = useState({
-    full_name:  user?.full_name  || "",
-    bio:        user?.bio        || "",
-    location:   formatLocation(user?.city, user?.state),
-    mile_range: user?.mile_range ?? 10,
-    services:   user?.services   || [],
+    full_name: user?.full_name || "",
+    bio:       user?.bio       || "",
+    location:  formatLocation(user?.city, user?.state),
+    services:  user?.services  || [],
   });
   const [saving, setSaving] = useState(false);
 
@@ -28,10 +27,9 @@ export default function FreelancerProfile() {
     try {
       const { city, state } = parseLocation(form.location);
       const patch = {
-        full_name:  form.full_name,
-        mile_range: form.mile_range,
-        city:       city  || null,
-        state:      state || null,
+        full_name: form.full_name,
+        city:      city  || null,
+        state:     state || null,
       };
 
       // Geocode the new location so map features work immediately
@@ -78,18 +76,6 @@ export default function FreelancerProfile() {
           />
           <p className="mt-1 text-xs text-gray-400">Used to find nearby businesses</p>
         </div>
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Search radius (miles)</label>
-        <input
-          type="number"
-          min={1}
-          max={200}
-          value={form.mile_range}
-          onChange={(e) => set("mile_range", Number(e.target.value))}
-          className="w-32 rounded-xl border border-gray-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-        />
       </div>
 
       <div>

@@ -1,44 +1,45 @@
-import { useState } from "react";
+const ALL_SERVICES = [
+  "Web Development",
+  "Mobile App Development",
+  "Brand Design",
+  "Social Media Management",
+  "SEO / Digital Marketing",
+  "Copywriting",
+  "Video Production",
+  "Photography",
+  "Bookkeeping",
+  "Consulting",
+];
 
 export default function ServicesList({ services = [], onChange }) {
-  const [input, setInput] = useState("");
+  const available = ALL_SERVICES.filter((s) => !services.includes(s));
 
-  function add() {
-    const trimmed = input.trim();
-    if (!trimmed || services.includes(trimmed)) return;
-    onChange([...services, trimmed]);
-    setInput("");
+  function add(svc) {
+    if (!svc || services.includes(svc)) return;
+    onChange([...services, svc]);
   }
 
   function remove(svc) {
     onChange(services.filter((s) => s !== svc));
   }
 
-  function handleKey(e) {
-    if (e.key === "Enter") { e.preventDefault(); add(); }
-  }
-
   return (
     <div className="space-y-2">
       <label className="block text-sm font-medium text-gray-700">Services offered</label>
 
-      <div className="flex gap-2">
-        <input
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKey}
-          placeholder="e.g. Web design, SEO, Copywriting"
-          className="flex-1 rounded-xl border border-gray-300 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-        />
-        <button
-          type="button"
-          onClick={add}
-          className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 transition-colors"
-        >
-          Add
-        </button>
-      </div>
+      <select
+        value=""
+        onChange={(e) => add(e.target.value)}
+        disabled={available.length === 0}
+        className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white"
+      >
+        <option value="" disabled>
+          {available.length === 0 ? "All services added" : "Select a service to add…"}
+        </option>
+        {available.map((svc) => (
+          <option key={svc} value={svc}>{svc}</option>
+        ))}
+      </select>
 
       {services.length > 0 && (
         <div className="flex flex-wrap gap-2 pt-1">
